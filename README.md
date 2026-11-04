@@ -344,15 +344,56 @@ Les exécutables générés sous Linux sont :
 
 ---
 
+### Cross-Compilation avec le Makefile 🌍
+
+Le [`Makefile`](file:///c:/xampp-school/htdocs/MesProjets/AlgorithmCompiler/Makefile) intègre le support natif complet de la **cross-compilation multi-plateforme** :
+
+#### 1. Cross-compiler vers Windows depuis Linux / macOS (ou CI/CD)
+Pour générer des exécutables Windows (`algo.exe` et `run_tests.exe`) 100% autonomes (liés statiquement avec `-static -static-libgcc -static-libstdc++`) sans dépendance DLL :
+```bash
+# Avec détection automatique du compilateur MinGW (x86_64-w64-mingw32-g++)
+make windows
+
+# Ou en spécifiant explicitement le préfixe de la toolchain
+make CROSS_COMPILE=x86_64-w64-mingw32-
+```
+
+Pour cibler Windows 32-bit :
+```bash
+make win32
+# Équivalent à : make TARGET_OS=windows CROSS_COMPILE=i686-w64-mingw32-
+```
+
+#### 2. Compiler pour Linux (binaire natif ELF)
+```bash
+make linux
+```
+
+#### 3. Afficher l'aide interactive du Makefile
+```bash
+make help
+```
+
+---
+
 ### Compilation sous Windows
 
-#### Méthode 1 : Script Batch natif
+#### Méthode 1 : Script Batch natif (Recommandé)
+Le script [`build.bat`](build.bat) configure automatiquement le `PATH` vers votre environnement MSYS2 (`C:\msys64\ucrt64\bin` ou `C:\MSYS2\ucrt64\bin`), compile avec liaison statique (`-static`) et génère les exécutables :
 ```cmd
 build.bat
 ```
 
-#### Méthode 2 : Avec GNU Make (MSYS2 / MinGW)
+#### Méthode 2 : Avec GNU Make (`mingw32-make` ou `make`)
+Si vous utilisez l'invite de commandes Windows (`cmd.exe`), configurez d'abord le chemin vers les outils MSYS2 dans votre session :
 ```cmd
+set PATH=C:\MSYS2\ucrt64\bin;%PATH%
+mingw32-make
+```
+*(ou `mingw32-make test` pour compiler et exécuter les tests).*
+
+*Astuce : Si vous utilisez directement le terminal **MSYS2 UCRT64** (ou Git Bash), le `PATH` est déjà configuré par défaut, il suffit de taper :*
+```bash
 make
 ```
 
@@ -362,8 +403,8 @@ node scripts/compile.js
 ```
 
 Les exécutables générés sous Windows sont :
-- `algo.exe` : Le compilateur / interpréteur / transpilateur principal.
-- `run_tests.exe` : Le runner de la suite de tests unitaires.
+- `algo.exe` : Le compilateur, interpréteur et transpilateur principal (autonome, sans dépendance DLL).
+- `run_tests.exe` : Le runner de la suite des 185 tests unitaires.
 
 ---
 

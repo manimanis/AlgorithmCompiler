@@ -1,9 +1,55 @@
+# ==============================================================================
+# .gitignore pour AlgorithmCompiler
+# ==============================================================================
+
+# Compilateur C++ - Fichiers objets et librairies
 *.o
+*.obj
+*.a
+*.lib
 src/*.o
+
+# Exécutables compilés (Linux, macOS et Windows)
 algo
+algo.exe
 run_tests
+run_tests.exe
+*.exe
+
+# Python - Cache et fichiers compilés
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+*.pyd
+
+# Scripts Python générés lors des tests ou de la transpilation
+*.py
+!scripts/*.js
+
+# Fichiers de données et temporaires générés par les tests
 *.tmp
 *.dat
+*.bin
+*.log
+*.out.tmp
+notes.txt
+etudiants.txt
+*.bak
 *.swp
-.DS_Store
+*.swo
+*~
 
+# IDE et éditeurs de texte
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosv
+*.sln.docstates
+
+# Fichiers systèmes
+.DS_Store
+Thumbs.db
+desktop.ini
