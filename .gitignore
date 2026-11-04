@@ -1,0 +1,9 @@
+*.o
+src/*.o
+algo
+run_tests
+*.tmp
+*.dat
+*.swp
+.DS_Store
+

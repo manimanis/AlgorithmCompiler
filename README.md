@@ -46,13 +46,16 @@ AlgorithmCompiler/
 │   ├── token.hpp               # Définitions des types de jetons (Token)
 │   └── value.hpp               # Modèle de valeur polymorphe (entier, réel, chaîne, tableau, enregistrement, fichier)
 ├── src/
-│   ├── main.cpp                # Point d'entrée de l'exécutable algo.exe
+│   ├── main.cpp                # Point d'entrée de l'exécutable (algo / algo.exe)
 │   ├── semantic_analyzer.cpp   # Implémentation de la vérification sémantique
 │   ├── python_transpiler.cpp   # Implémentation du transpilateur Python
 │   ├── interpreter.cpp         # Implémentation de l'interpréteur
 │   ├── parser.cpp              # Implémentation du parseur
 │   ├── lexer.cpp               # Implémentation du lexer
 │   └── test_runner.cpp         # Runner autonome des 185 tests unitaires
+├── Makefile                    # Makefile universel multiplateforme (Linux, macOS, Windows)
+├── build.sh                    # Script shell de compilation directe pour Linux / macOS
+├── build.bat                   # Script batch de compilation pour Windows
 ├── tests/                      # 185 tests couvrant toutes les fonctionnalités
 └── scripts/                    # Scripts Node.js pour compilation et validation
 ```
@@ -302,20 +305,63 @@ AlgorithmCompiler permet de générer du code **Python 3 moderne, propre et dire
 ## 🛠 Installation & Compilation
 
 ### Prérequis
-- Système d'exploitation : Windows (PowerShell / CMD), Linux ou macOS.
-- Compilateur C++ supportant C++20 (`g++` via MSYS2 UCRT64 / MinGW-w64, ou `clang++`).
-- Node.js (facultatif, pour les scripts d'automatisation des tests).
+- **Système d'exploitation** : Linux (Ubuntu, Debian, Fedora, Arch...), macOS, ou Windows (MSYS2 / MinGW-w64).
+- **Compilateur C++** : Supportant **C++20** (`g++` >= 10 ou `clang++` >= 13).
+- **Make** : GNU Make (recommandé pour la compilation incrémentale).
+- **Node.js** (facultatif) : Pour exécuter les scripts de validation automatisée.
 
-### Compilation sous Windows avec MSYS2 GCC
+---
+
+### Compilation sous Linux / macOS
+
+#### Méthode 1 : Avec `make` (Recommandé)
+Le `Makefile` est entièrement configuré pour détecter votre environnement et compiler en parallèle :
+```bash
+# Compilation des deux exécutables (algo et run_tests)
+make -j$(nproc)
+
+# Nettoyer les objets et binaires compilés
+make clean
+
+# Lancer la suite complète des tests unitaires
+make test
+```
+
+#### Méthode 2 : Avec le script Bash `build.sh`
+```bash
+chmod +x build.sh
+./build.sh
+```
+
+#### Méthode 3 : Via le script Node.js
+```bash
+node scripts/compile.js
+```
+
+Les exécutables générés sous Linux sont :
+- `algo` : Compilateur, interpréteur et transpilateur principal.
+- `run_tests` : Runner autonome des tests unitaires.
+
+---
+
+### Compilation sous Windows
+
+#### Méthode 1 : Script Batch natif
 ```cmd
 build.bat
 ```
-ou via le script Node.js :
+
+#### Méthode 2 : Avec GNU Make (MSYS2 / MinGW)
+```cmd
+make
+```
+
+#### Méthode 3 : Via le script Node.js
 ```cmd
 node scripts/compile.js
 ```
 
-Les exécutables générés sont :
+Les exécutables générés sous Windows sont :
 - `algo.exe` : Le compilateur / interpréteur / transpilateur principal.
 - `run_tests.exe` : Le runner de la suite de tests unitaires.
 
@@ -324,18 +370,23 @@ Les exécutables générés sont :
 ## 🚀 Utilisation en Ligne de Commande (CLI)
 
 ### Exécuter un algorithme (Interpréteur)
+Sous Linux / macOS :
 ```bash
-./algo.exe mon_programme.alg
+./algo mon_programme.alg
+```
+Sous Windows :
+```cmd
+algo.exe mon_programme.alg
 ```
 
 ### Transpiler vers Python
-Afficher le code Python généré dans la console :
+Afficher le code Python généré dans le terminal :
 ```bash
-./algo.exe mon_programme.alg --to-python
+./algo mon_programme.alg --to-python
 ```
 Enregistrer le code Python directement dans un fichier :
 ```bash
-./algo.exe mon_programme.alg --to-python sortie.py
+./algo mon_programme.alg --to-python sortie.py
 ```
 
 ### Options d'exécution
@@ -346,13 +397,22 @@ Enregistrer le code Python directement dans un fichier :
 
 ## 🧪 Suite de Tests Automatisée
 
-AlgorithmCompiler dispose d'une suite de **185 tests unitaires** couvrant l'intégralité des fonctionnalités :
+AlgorithmCompiler dispose d'une suite de **185 tests unitaires** couvrant l'intégralité des fonctionnalités du langage.
 
+### Lancer tous les tests en C++
+Sous Linux / macOS :
 ```bash
-./run_tests.exe
+make test
+# ou directement :
+./run_tests
 ```
 
-Résultats :
+Sous Windows :
+```cmd
+run_tests.exe
+```
+
+Résultats attendus :
 ```text
 ========================================================
                   RÉSULTATS DES TESTS                   
@@ -363,7 +423,8 @@ Résultats :
 ========================================================
 ```
 
-Pour exécuter les tests du transpilateur Python :
+### Lancer les tests du transpilateur Python (facultatif)
+Nécessite Node.js et Python 3 :
 ```bash
 node scripts/test_transpiler.js
 ```

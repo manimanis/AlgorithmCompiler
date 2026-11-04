@@ -2,8 +2,12 @@ const { spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-const py = 'C:\\msys64\\ucrt64\\bin\\python3.exe';
-const algo = path.resolve('algo.exe');
+const py = process.platform === 'win32'
+  ? (process.env.PYTHON || 'C:\\msys64\\ucrt64\\bin\\python3.exe')
+  : (process.env.PYTHON || 'python3');
+const algo = fs.existsSync(path.resolve('algo'))
+  ? path.resolve('algo')
+  : path.resolve('algo.exe');
 
 const testFiles = [
   'tests/control-flow/09_repeat_loop.alg',

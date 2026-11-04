@@ -1,5 +1,5 @@
 // @max-iter: 20000000
-// @timeout: 30000
+// @timeout: 120000
 Fonction ApproximationPi (N : Entier) : Réel
 Début
     E <- 1

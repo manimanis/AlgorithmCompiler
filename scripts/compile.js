@@ -1,12 +1,27 @@
 const { spawnSync } = require('child_process');
+const fs = require('fs');
 
-const env = { ...process.env, PATH: `C:\\msys64\\ucrt64\\bin;${process.env.PATH}` };
-const gxx = 'C:\\msys64\\ucrt64\\bin\\g++.exe';
+const isWin = process.platform === 'win32';
+const env = isWin
+  ? { ...process.env, PATH: `C:\\msys64\\ucrt64\\bin;${process.env.PATH}` }
+  : process.env;
+
+const gxx = isWin
+  ? (process.env.CXX || 'C:\\msys64\\ucrt64\\bin\\g++.exe')
+  : (process.env.CXX || 'g++');
+
+const algoOut = isWin ? 'algo.exe' : 'algo';
+const testOut = isWin ? 'run_tests.exe' : 'run_tests';
+
+const commonFlags = ['-std=c++20', '-O2', '-Wall', '-Wextra', '-Iinclude'];
+if (isWin) {
+  commonFlags.push('-static');
+}
+
+console.log(`Compilation avec ${gxx}...`);
+
 const res = spawnSync(gxx, [
-  '-std=c++20',
-  '-O2',
-  '-static',
-  '-Iinclude',
+  ...commonFlags,
   'src/lexer.cpp',
   'src/value.cpp',
   'src/parser.cpp',
@@ -15,17 +30,14 @@ const res = spawnSync(gxx, [
   'src/semantic_analyzer.cpp',
   'src/main.cpp',
   '-o',
-  'algo.exe'
+  algoOut
 ], { encoding: 'utf8', env });
 
-console.log('Status:', res.status);
-console.log('Stderr:', res.stderr);
+console.log(`[${algoOut}] Status:`, res.status);
+if (res.stderr) console.error(res.stderr);
 
 const res2 = spawnSync(gxx, [
-  '-std=c++20',
-  '-O2',
-  '-static',
-  '-Iinclude',
+  ...commonFlags,
   'src/lexer.cpp',
   'src/value.cpp',
   'src/parser.cpp',
@@ -33,8 +45,16 @@ const res2 = spawnSync(gxx, [
   'src/semantic_analyzer.cpp',
   'src/test_runner.cpp',
   '-o',
-  'run_tests.exe'
+  testOut
 ], { encoding: 'utf8', env });
 
-console.log('Status 2:', res2.status);
-console.log('Stderr 2:', res2.stderr);
+console.log(`[${testOut}] Status:`, res2.status);
+if (res2.stderr) console.error(res2.stderr);
+
+// On non-Windows, also maintain algo.exe and run_tests.exe symlinks/copies for convenience
+if (!isWin && res.status === 0 && res2.status === 0) {
+  try {
+    if (!fs.existsSync('algo.exe')) fs.copyFileSync('algo', 'algo.exe');
+    if (!fs.existsSync('run_tests.exe')) fs.copyFileSync('run_tests', 'run_tests.exe');
+  } catch (_) {}
+}

@@ -13,7 +13,8 @@ for (const t of tests) {
   const inFile = t + '.in';
   const outFile = t + '.out';
   const input = fs.existsSync(inFile) ? fs.readFileSync(inFile) : '';
-  const out = execSync(`.\\algo.exe "${alg}" --seed 42`, { input });
+  const algoCmd = process.platform === 'win32' ? '.\\algo.exe' : './algo';
+  const out = execSync(`${algoCmd} "${alg}" --seed 42`, { input });
   fs.writeFileSync(outFile, out);
   console.log('Generated out for', t);
 }

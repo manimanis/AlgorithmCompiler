@@ -15,6 +15,7 @@ void Interpreter::checkIterationLimit(int line) {
 }
 
 void Interpreter::checkTimeout(int line) {
+    if ((iterationCount_ & 255) != 0) return;
     auto now = std::chrono::steady_clock::now();
     auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime_).count();
     if ((uint64_t)elapsedMs > options_.timeoutMs) {
