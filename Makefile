@@ -56,7 +56,7 @@ endif
 
 # Flags de compilation C++20
 CXXFLAGS ?= -std=c++20 -O2 -Wall -Wextra -Iinclude
-LDFLAGS ?= $(STATIC_FLAGS)
+LDFLAGS ?= $(STATIC_FLAGS) -s
 
 # Fichiers sources et objets
 SRCS_COMMON = src/lexer.cpp src/value.cpp src/parser.cpp src/interpreter.cpp src/semantic_analyzer.cpp

@@ -2,6 +2,7 @@
 #include "../include/parser.hpp"
 #include "../include/interpreter.hpp"
 #include "../include/semantic_analyzer.hpp"
+#include "../include/version.hpp"
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -118,7 +119,7 @@ int main(int argc, char* argv[]) {
     }
 
     std::cout << "========================================================\n";
-    std::cout << "        Lancement de la suite de tests en C++           \n";
+    std::cout << "  Suite de tests AlgorithmCompiler v" << getVersionString() << " (C++20)\n";
     std::cout << "========================================================\n";
     std::cout << "Dossier cible : " << testRoot << "\n\n";
 

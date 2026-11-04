@@ -430,9 +430,14 @@ Enregistrer le code Python directement dans un fichier :
 ./algo mon_programme.alg --to-python sortie.py
 ```
 
-### Options d'exécution
-- `--max-iter <N>` : Fixer la limite d'itérations maximale (prévention des boucles infinies).
-- `--seed <N>` : Définir la graine pour le générateur pseudo-aléatoire.
+### Options de la ligne de commande
+- `-h, --help` : Affiche l'aide détaillée et les exemples d'utilisation.
+- `-v, --version` : Affiche le numéro de version du compilateur.
+- `--check` : Effectue uniquement l'analyse syntaxique et la vérification sémantique statique sans exécuter le code.
+- `--to-python, --py [out.py]` : Transpile vers du code Python 3 (vers la sortie standard ou un fichier).
+- `--max-iter <N>` : Fixe la limite maximale d'itérations de boucle (défaut : 1 000 000).
+- `--timeout <ms>` : Fixe le délai maximal d'exécution en millisecondes (défaut : 50 000 ms).
+- `--seed <N>` : Définit la graine pseudo-aléatoire pour les fonctions Aléa / Hasard.
 
 ---
 
