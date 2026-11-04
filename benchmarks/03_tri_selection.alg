@@ -23,17 +23,17 @@ i, j, minIdx, tmp : entier
 Algorithme benchmark_tri
 Début
     // Remplissage en ordre décroissant (pire cas)
-    Pour k de 0 à 3999 Faire
-        t[k] ← 40000 - k
+    Pour k de 0 à 999 Faire
+        t[k] ← 1000 - k
     Fin Pour
 
-    TrierSelection(4000)
+    TrierSelection(1000)
 
-    Ecrire("Tri terminé. Premier: ", t[0], ", Dernier: ", t[3999])
+    Ecrire("Tri terminé. Premier: ", t[0], ", Dernier: ", t[999])
 Fin
 
 TDNT
-Tab400 = tableau de 4000 entier
+Tab400 = tableau de 1000 entier
 
 TDO
 Objet : Type/Nature
