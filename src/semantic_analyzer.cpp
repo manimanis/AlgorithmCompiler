@@ -169,7 +169,33 @@ void SemanticAnalyzer::reportWarning(int line, int col, const std::string& objec
     diag.column = col;
     diag.objectName = objectName;
     diag.message = msg;
-    diag.formatted = "Avertissement (ligne " + std::to_string(line) + ") : " + msg;
+
+    std::ostringstream ss;
+    if (line > 0 && line <= (int)sourceLines_.size()) {
+        const std::string& srcLine = sourceLines_[line - 1];
+        if (col <= 0 && !objectName.empty()) {
+            size_t p = toLower(srcLine).find(toLower(objectName));
+            if (p != std::string::npos) {
+                col = (int)p + 1;
+            } else {
+                col = 1;
+            }
+        }
+        if (col <= 0) col = 1;
+
+        ss << "Avertissement (ligne " << line << ", colonne " << col << ") :\n";
+        ss << "    " << srcLine << "\n";
+        ss << "    " << std::string(col > 1 ? col - 1 : 0, ' ') << "^";
+        if (objectName.size() > 1) {
+            ss << std::string(objectName.size() - 1, '~');
+        }
+        ss << "\n";
+    } else {
+        if (line > 0) ss << "Avertissement ligne " << line << " : ";
+        else ss << "Avertissement : ";
+    }
+    ss << msg;
+    diag.formatted = ss.str();
     diagnostics_.push_back(diag);
 }
 
@@ -193,6 +219,22 @@ std::vector<SemanticDiagnostic> SemanticAnalyzer::analyze(const Program& prog) {
     }
 
     checkBlock(prog.mainBody);
+
+    // Détection des variables déclarées dans le TDO mais jamais utilisées
+    for (const auto& vd : prog.varDecls) {
+        std::string vt = normalize(vd.varType);
+        if (vt == "procedure" || vt == "fonction" || normalize(vd.typeSpec.name) == "procedure" || normalize(vd.typeSpec.name) == "fonction") {
+            continue;
+        }
+        for (const auto& name : vd.names) {
+            std::string norm = normalize(name);
+            auto it = scopes_[0].find(norm);
+            if (it != scopes_[0].end() && !it->second.isUsed) {
+                reportWarning(vd.line, -1, name,
+                              "La variable '" + name + "' est déclarée dans le TDO mais n'est jamais utilisée.");
+            }
+        }
+    }
 
     for (const auto& d : diagnostics_) {
         if (d.isError) {
@@ -233,13 +275,28 @@ void SemanticAnalyzer::checkProcedure(const ProcedureDecl& proc) {
     for (const auto& p : proc.params) {
         TypeSpec ts;
         ts.name = p.paramType;
-        declareSymbol(p.name, p.paramType, ts, SymbolKind::Variable, -1);
+        if (!declareSymbol(p.name, p.paramType, ts, SymbolKind::Variable, proc.line)) {
+            reportError(proc.line > 0 ? proc.line : 1, 1, p.name,
+                        "Le paramètre '" + p.name + "' est déclaré plus d'une fois dans l'en-tête de la procédure '" + proc.name + "'.");
+        }
     }
     for (const auto& vd : proc.localVars) {
         std::string vt = normalize(vd.varType);
         if (vt == "procedure" || vt == "fonction") continue;
         for (const auto& name : vd.names) {
-            declareSymbol(name, vd.varType, vd.typeSpec, SymbolKind::Variable, vd.line);
+            bool isParam = false;
+            for (const auto& p : proc.params) {
+                if (normalize(p.name) == normalize(name)) {
+                    isParam = true;
+                    break;
+                }
+            }
+            if (isParam) {
+                reportError(vd.line > 0 ? vd.line : proc.line, 1, name,
+                            "Le paramètre '" + name + "' est déjà déclaré dans l'en-tête de la procédure '" + proc.name + "' et ne doit pas être redéclaré dans la TDOL.");
+            } else {
+                declareSymbol(name, vd.varType, vd.typeSpec, SymbolKind::Variable, vd.line);
+            }
         }
     }
 
@@ -256,13 +313,28 @@ void SemanticAnalyzer::checkFunction(const FunctionDecl& func) {
     for (const auto& p : func.params) {
         TypeSpec ts;
         ts.name = p.paramType;
-        declareSymbol(p.name, p.paramType, ts, SymbolKind::Variable, -1);
+        if (!declareSymbol(p.name, p.paramType, ts, SymbolKind::Variable, func.line)) {
+            reportError(func.line > 0 ? func.line : 1, 1, p.name,
+                        "Le paramètre '" + p.name + "' est déclaré plus d'une fois dans l'en-tête de la fonction '" + func.name + "'.");
+        }
     }
     for (const auto& vd : func.localVars) {
         std::string vt = normalize(vd.varType);
         if (vt == "procedure" || vt == "fonction") continue;
         for (const auto& name : vd.names) {
-            declareSymbol(name, vd.varType, vd.typeSpec, SymbolKind::Variable, vd.line);
+            bool isParam = false;
+            for (const auto& p : func.params) {
+                if (normalize(p.name) == normalize(name)) {
+                    isParam = true;
+                    break;
+                }
+            }
+            if (isParam) {
+                reportError(vd.line > 0 ? vd.line : func.line, 1, name,
+                            "Le paramètre '" + name + "' est déjà déclaré dans l'en-tête de la fonction '" + func.name + "' et ne doit pas être redéclaré dans la TDOL.");
+            } else {
+                declareSymbol(name, vd.varType, vd.typeSpec, SymbolKind::Variable, vd.line);
+            }
         }
     }
 

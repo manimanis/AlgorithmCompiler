@@ -153,14 +153,21 @@ int main(int argc, char* argv[]) {
         fs::path inPath = parent / (stem + ".in");
         fs::path outPath = parent / (stem + ".out");
         fs::path errPath = parent / (stem + ".err");
+        fs::path warnPath = parent / (stem + ".warn");
 
         bool hasInput = fs::exists(inPath);
         bool hasExpectedOutput = fs::exists(outPath);
         bool hasExpectedError = fs::exists(errPath);
+        bool hasExpectedWarn = fs::exists(warnPath);
 
         std::string expectedError;
         if (hasExpectedError) {
             expectedError = trim(readFile(errPath.string()));
+        }
+
+        std::string expectedWarn;
+        if (hasExpectedWarn) {
+            expectedWarn = trim(readFile(warnPath.string()));
         }
 
         std::string expectedOutput;
@@ -175,6 +182,7 @@ int main(int argc, char* argv[]) {
 
         bool testPassed = false;
         std::string errorMsg;
+        bool warnMatched = !hasExpectedWarn;
 
         try {
             std::string source = readFile(path.string());
@@ -187,7 +195,16 @@ int main(int argc, char* argv[]) {
             Program prog = parser.parse();
 
             SemanticAnalyzer analyzer(source);
-            analyzer.analyze(prog);
+            auto diags = analyzer.analyze(prog);
+
+            if (hasExpectedWarn) {
+                for (const auto& d : diags) {
+                    if (!d.isError && (expectedWarn.empty() || containsIgnoreCase(d.message, expectedWarn) || containsIgnoreCase(d.formatted, expectedWarn))) {
+                        warnMatched = true;
+                        break;
+                    }
+                }
+            }
 
             InterpreterOptions opts;
             opts.maxIterations = directives.maxIterations;
@@ -209,6 +226,9 @@ int main(int argc, char* argv[]) {
             if (hasExpectedError) {
                 testPassed = false;
                 errorMsg = "Exception attendue ('" + expectedError + "') mais aucune levée";
+            } else if (!warnMatched) {
+                testPassed = false;
+                errorMsg = "Avertissement attendu ('" + expectedWarn + "') mais aucun n'a été émis";
             } else if (hasExpectedOutput) {
                 std::string actualOutput = normalizeOutput(actualOutputRaw);
                 if (actualOutput == expectedOutput) {

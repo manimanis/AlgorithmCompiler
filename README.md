@@ -2,7 +2,7 @@
 
 **AlgorithmCompiler** est un interpréteur, vérificateur sémantique statique et transpilateur haute performance pour le pseudo-code algorithmique standard utilisé dans l'enseignement secondaire et supérieur en Tunisie (programmes du Baccalauréat tunisien : Mathématiques, Sciences Expérimentales, Sciences de l'Informatique, Technique et Économie-Gestion).
 
-Le projet est développé en **C++20 moderne** et dispose d'une suite complète de **185 tests unitaires automatisés validés à 100%**.
+Le projet est développé en **C++20 moderne** et dispose d'une suite complète de **187 tests unitaires automatisés validés à 100%**.
 
 ---
 
@@ -52,11 +52,11 @@ AlgorithmCompiler/
 │   ├── interpreter.cpp         # Implémentation de l'interpréteur
 │   ├── parser.cpp              # Implémentation du parseur
 │   ├── lexer.cpp               # Implémentation du lexer
-│   └── test_runner.cpp         # Runner autonome des 185 tests unitaires
+│   └── test_runner.cpp         # Runner autonome des 187 tests unitaires
 ├── Makefile                    # Makefile universel multiplateforme (Linux, macOS, Windows)
 ├── build.sh                    # Script shell de compilation directe pour Linux / macOS
 ├── build.bat                   # Script batch de compilation pour Windows
-├── tests/                      # 185 tests couvrant toutes les fonctionnalités
+├── tests/                      # 187 tests couvrant toutes les fonctionnalités
 └── scripts/                    # Scripts Node.js pour compilation et validation
 ```
 
@@ -404,7 +404,7 @@ node scripts/compile.js
 
 Les exécutables générés sous Windows sont :
 - `algo.exe` : Le compilateur, interpréteur et transpilateur principal (autonome, sans dépendance DLL).
-- `run_tests.exe` : Le runner de la suite des 185 tests unitaires.
+- `run_tests.exe` : Le runner de la suite des 187 tests unitaires.
 
 ---
 
@@ -443,7 +443,7 @@ Enregistrer le code Python directement dans un fichier :
 
 ## 🧪 Suite de Tests Automatisée
 
-AlgorithmCompiler dispose d'une suite de **185 tests unitaires** couvrant l'intégralité des fonctionnalités du langage.
+AlgorithmCompiler dispose d'une suite de **187 tests unitaires** couvrant l'intégralité des fonctionnalités du langage.
 
 ### Lancer tous les tests en C++
 Sous Linux / macOS :
@@ -463,8 +463,8 @@ Résultats attendus :
 ========================================================
                   RÉSULTATS DES TESTS                   
 ========================================================
- Total tests : 185
- Réussis     : 185
+ Total tests : 187
+ Réussis     : 187
  Échoués     : 0 (100% SUCCÈS)
 ========================================================
 ```

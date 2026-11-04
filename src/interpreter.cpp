@@ -694,6 +694,15 @@ void Interpreter::executeProcedure(const std::string& name, const std::vector<st
         std::string vtNorm = normalize(vd.varType);
         if (vtNorm == "procedure" || vtNorm == "fonction" || vd.typeSpec.name == "procedure" || vd.typeSpec.name == "fonction") continue;
         for (const auto& varName : vd.names) {
+            bool isParam = false;
+            for (const auto& p : proc.params) {
+                if (normalize(p.name) == normalize(varName)) {
+                    isParam = true;
+                    break;
+                }
+            }
+            if (isParam) continue;
+
             Value defVal;
             if (vd.typeSpec.kind != TypeKind::Simple || !vd.typeSpec.name.empty()) {
                 defVal = getDefaultValue(vd.typeSpec, varName);
@@ -749,6 +758,15 @@ Value Interpreter::executeFunction(const std::string& name, const std::vector<st
         std::string vtNorm = normalize(vd.varType);
         if (vtNorm == "procedure" || vtNorm == "fonction" || vd.typeSpec.name == "procedure" || vd.typeSpec.name == "fonction") continue;
         for (const auto& varName : vd.names) {
+            bool isParam = false;
+            for (const auto& p : func.params) {
+                if (normalize(p.name) == normalize(varName)) {
+                    isParam = true;
+                    break;
+                }
+            }
+            if (isParam) continue;
+
             Value defVal;
             if (vd.typeSpec.kind != TypeKind::Simple || !vd.typeSpec.name.empty()) {
                 defVal = getDefaultValue(vd.typeSpec, varName);

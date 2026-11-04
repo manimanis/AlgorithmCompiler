@@ -147,7 +147,13 @@ int main(int argc, char* argv[]) {
         Program prog = parser.parse();
 
         SemanticAnalyzer analyzer(source);
-        analyzer.analyze(prog);
+        auto diags = analyzer.analyze(prog);
+
+        for (const auto& d : diags) {
+            if (!d.isError) {
+                std::cerr << d.formatted << "\n";
+            }
+        }
 
         if (checkOnly) {
             std::cout << "[OK] Syntaxe et analyse sémantique réussies pour : " << filePath << std::endl;
