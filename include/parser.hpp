@@ -2,17 +2,29 @@
 
 #include "lexer.hpp"
 #include "ast.hpp"
+#include "arena.hpp"
 
 namespace algo {
 
 class Parser {
 public:
-    explicit Parser(std::vector<Token> tokens);
+    explicit Parser(std::vector<Token> tokens, std::shared_ptr<Arena> arena = nullptr);
     Program parse();
+
+    std::shared_ptr<Arena> getArena() const { return arena_; }
+
+    template<typename T, typename... Args>
+    std::shared_ptr<T> makeNode(Args&&... args) {
+        if (arena_) {
+            return arena_->makeShared<T>(std::forward<Args>(args)...);
+        }
+        return std::make_shared<T>(std::forward<Args>(args)...);
+    }
 
 private:
     std::vector<Token> tokens_;
     size_t pos_;
+    std::shared_ptr<Arena> arena_;
 
     const Token& peek(size_t offset = 0) const;
     const Token& next();

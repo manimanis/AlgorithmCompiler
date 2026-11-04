@@ -44,7 +44,7 @@ public:
     }
 };
 
-class Interpreter {
+class Interpreter : public StmtVisitor, public ExprVisitor {
 public:
     explicit Interpreter(InterpreterOptions options = InterpreterOptions());
 
@@ -66,6 +66,34 @@ public:
     void assignToLValue(const std::shared_ptr<Expr>& lhs, const Value& val, const std::shared_ptr<Environment>& env, int line = -1);
     void writeFileData(AlgoFile& f, const Value& val);
     Value readFileData(AlgoFile& f);
+
+    // StmtVisitor interface
+    void visit(AssignStmt& node) override;
+    void visit(ArrayAssignStmt& node) override;
+    void visit(MemberAssignStmt& node) override;
+    void visit(WriteStmt& node) override;
+    void visit(ReadStmt& node) override;
+    void visit(IfStmt& node) override;
+    void visit(ForStmt& node) override;
+    void visit(WhileStmt& node) override;
+    void visit(RepeatStmt& node) override;
+    void visit(CallStmt& node) override;
+    void visit(SwitchStmt& node) override;
+    void visit(ReturnStmt& node) override;
+    void visit(LocalVarDeclStmt& node) override;
+
+    // ExprVisitor interface
+    void visit(NumberExpr& node) override;
+    void visit(RealExpr& node) override;
+    void visit(StringExpr& node) override;
+    void visit(BoolExpr& node) override;
+    void visit(VariableExpr& node) override;
+    void visit(ArrayAccessExpr& node) override;
+    void visit(MemberAccessExpr& node) override;
+    void visit(UnaryExpr& node) override;
+    void visit(BinaryExpr& node) override;
+    void visit(CallExpr& node) override;
+    void visit(SetLiteralExpr& node) override;
 
 private:
     InterpreterOptions options_;
@@ -90,6 +118,10 @@ private:
     uint64_t iterationCount_ = 0;
     std::chrono::steady_clock::time_point startTime_;
     Mulberry32RNG rng_;
+
+    // Visitor execution context
+    std::shared_ptr<Environment> currentEnv_;
+    Value evalResult_;
 
     void checkIterationLimit(int line = -1);
     void checkTimeout(int line = -1);

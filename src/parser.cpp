@@ -2,8 +2,12 @@
 
 namespace algo {
 
-Parser::Parser(std::vector<Token> tokens)
-    : tokens_(std::move(tokens)), pos_(0) {}
+Parser::Parser(std::vector<Token> tokens, std::shared_ptr<Arena> arena)
+    : tokens_(std::move(tokens)), pos_(0), arena_(std::move(arena)) {
+    if (!arena_) {
+        arena_ = makeNode<Arena>();
+    }
+}
 
 const Token& Parser::peek(size_t offset) const {
     if (pos_ + offset >= tokens_.size()) return tokens_.back();
@@ -67,6 +71,7 @@ void Parser::consumeSemicolons() {
 
 Program Parser::parse() {
     Program prog;
+    prog.arena = arena_;
     while (peek().type != TokenType::END_OF_FILE) {
         if (peek().type == TokenType::COMMENT) {
             next();
@@ -288,7 +293,7 @@ TypeSpec Parser::parseTypeSpec() {
                 break;
             }
             if (peek().type == TokenType::IDENTIFIER) {
-                auto fieldDecl = std::make_shared<VarDecl>();
+                auto fieldDecl = makeNode<VarDecl>();
                 Token firstFld = expect(TokenType::IDENTIFIER);
                 fieldDecl->names.push_back(firstFld.value);
                 fieldDecl->line = firstFld.line;
@@ -638,10 +643,10 @@ std::shared_ptr<Stmt> Parser::parseStatement() {
         expect(TokenType::DELIMITER, ",");
         Token varTok = expect(TokenType::IDENTIFIER);
         expect(TokenType::DELIMITER, ")");
-        return std::make_shared<CallStmt>("lire_ligne",
+        return makeNode<CallStmt>("lire_ligne",
             std::vector<std::shared_ptr<Expr>>{
-                std::make_shared<VariableExpr>(fTok.value, tok.line),
-                std::make_shared<VariableExpr>(varTok.value, tok.line)
+                makeNode<VariableExpr>(fTok.value, tok.line),
+                makeNode<VariableExpr>(varTok.value, tok.line)
             }, tok.line);
     }
     if (n == "si") return parseIf();
@@ -667,14 +672,14 @@ std::shared_ptr<Stmt> Parser::parseAssignOrCall() {
             } while (match(TokenType::DELIMITER, ","));
             expect(TokenType::DELIMITER, ")");
         }
-        return std::make_shared<CallStmt>(idTok.value, std::move(args), line);
+        return makeNode<CallStmt>(idTok.value, std::move(args), line);
     }
 
-    std::shared_ptr<Expr> lhs = std::make_shared<VariableExpr>(idTok.value, line);
+    std::shared_ptr<Expr> lhs = makeNode<VariableExpr>(idTok.value, line);
     while (true) {
         if (match(TokenType::DELIMITER, ".")) {
             Token mTok = expect(TokenType::IDENTIFIER);
-            lhs = std::make_shared<MemberAccessExpr>(lhs, mTok.value, mTok.line);
+            lhs = makeNode<MemberAccessExpr>(lhs, mTok.value, mTok.line);
         } else if (match(TokenType::DELIMITER, "[")) {
             auto idx1 = parseExpression();
             std::shared_ptr<Expr> idx2 = nullptr;
@@ -686,7 +691,7 @@ std::shared_ptr<Stmt> Parser::parseAssignOrCall() {
                 idx2 = parseExpression();
                 expect(TokenType::DELIMITER, "]");
             }
-            lhs = std::make_shared<ArrayAccessExpr>(lhs, idx1, idx2, line);
+            lhs = makeNode<ArrayAccessExpr>(lhs, idx1, idx2, line);
         } else {
             break;
         }
@@ -696,19 +701,19 @@ std::shared_ptr<Stmt> Parser::parseAssignOrCall() {
         next(); // consume arrow
         auto val = parseExpression();
         if (auto mem = std::dynamic_pointer_cast<MemberAccessExpr>(lhs)) {
-            return std::make_shared<MemberAssignStmt>(mem->object, mem->member, val, line);
+            return makeNode<MemberAssignStmt>(mem->object, mem->member, val, line);
         }
         if (auto arr = std::dynamic_pointer_cast<ArrayAccessExpr>(lhs)) {
             if (arr->target) {
                 if (auto varExpr = std::dynamic_pointer_cast<VariableExpr>(arr->target)) {
-                    return std::make_shared<ArrayAssignStmt>(varExpr->name, arr->index, val, arr->index2, line);
+                    return makeNode<ArrayAssignStmt>(varExpr->name, arr->index, val, arr->index2, line);
                 }
-                return std::make_shared<ArrayAssignStmt>(arr->target, arr->index, val, arr->index2, line);
+                return makeNode<ArrayAssignStmt>(arr->target, arr->index, val, arr->index2, line);
             }
-            return std::make_shared<ArrayAssignStmt>(arr->name, arr->index, val, arr->index2, line);
+            return makeNode<ArrayAssignStmt>(arr->name, arr->index, val, arr->index2, line);
         }
         if (auto var = std::dynamic_pointer_cast<VariableExpr>(lhs)) {
-            return std::make_shared<AssignStmt>(var->name, val, line);
+            return makeNode<AssignStmt>(var->name, val, line);
         }
     }
 
@@ -749,7 +754,7 @@ std::shared_ptr<Stmt> Parser::parseWrite() {
         expect(TokenType::DELIMITER, ")");
     }
 
-    return std::make_shared<WriteStmt>(std::move(args), sep, fin, line, isNl);
+    return makeNode<WriteStmt>(std::move(args), sep, fin, line, isNl);
 }
 
 std::shared_ptr<Stmt> Parser::parseRead() {
@@ -763,12 +768,12 @@ std::shared_ptr<Stmt> Parser::parseRead() {
         ReadTarget tgt;
         tgt.name = idTok.value;
 
-        std::shared_ptr<Expr> expr = std::make_shared<VariableExpr>(idTok.value, idTok.line);
+        std::shared_ptr<Expr> expr = makeNode<VariableExpr>(idTok.value, idTok.line);
         while (true) {
             if (match(TokenType::DELIMITER, ".")) {
                 Token mTok = expect(TokenType::IDENTIFIER);
                 tgt.member = mTok.value;
-                expr = std::make_shared<MemberAccessExpr>(expr, mTok.value, mTok.line);
+                expr = makeNode<MemberAccessExpr>(expr, mTok.value, mTok.line);
             } else if (match(TokenType::DELIMITER, "[")) {
                 tgt.isArray = true;
                 tgt.index = parseExpression();
@@ -782,7 +787,7 @@ std::shared_ptr<Stmt> Parser::parseRead() {
                     tgt.index2 = parseExpression();
                     expect(TokenType::DELIMITER, "]");
                 }
-                expr = std::make_shared<ArrayAccessExpr>(expr, tgt.index, tgt.index2, idTok.line);
+                expr = makeNode<ArrayAccessExpr>(expr, tgt.index, tgt.index2, idTok.line);
             } else {
                 break;
             }
@@ -792,7 +797,7 @@ std::shared_ptr<Stmt> Parser::parseRead() {
     } while (match(TokenType::DELIMITER, ","));
 
     expect(TokenType::DELIMITER, ")");
-    return std::make_shared<ReadStmt>(std::move(targets), line);
+    return makeNode<ReadStmt>(std::move(targets), line);
 }
 
 std::shared_ptr<Stmt> Parser::parseIf() {
@@ -877,7 +882,7 @@ std::shared_ptr<Stmt> Parser::parseIf() {
         consumeSemicolons();
     }
 
-    return std::make_shared<IfStmt>(cond, std::move(thenBlock), std::move(elseIfs), std::move(elseBlock), line);
+    return makeNode<IfStmt>(cond, std::move(thenBlock), std::move(elseIfs), std::move(elseBlock), line);
 }
 
 std::shared_ptr<Stmt> Parser::parseFor() {
@@ -926,7 +931,7 @@ std::shared_ptr<Stmt> Parser::parseFor() {
         consumeSemicolons();
     }
 
-    return std::make_shared<ForStmt>(varTok.value, startExpr, endExpr, stepExpr, std::move(body), line);
+    return makeNode<ForStmt>(varTok.value, startExpr, endExpr, stepExpr, std::move(body), line);
 }
 
 std::shared_ptr<Stmt> Parser::parseWhile() {
@@ -957,7 +962,7 @@ std::shared_ptr<Stmt> Parser::parseWhile() {
         consumeSemicolons();
     }
 
-    return std::make_shared<WhileStmt>(cond, std::move(body), line);
+    return makeNode<WhileStmt>(cond, std::move(body), line);
 }
 
 std::shared_ptr<Stmt> Parser::parseRepeat() {
@@ -975,14 +980,14 @@ std::shared_ptr<Stmt> Parser::parseRepeat() {
 
     expectKeyword("jusqu'a");
     auto cond = parseExpression();
-    return std::make_shared<RepeatStmt>(std::move(body), cond, line);
+    return makeNode<RepeatStmt>(std::move(body), cond, line);
 }
 
 std::shared_ptr<Stmt> Parser::parseReturn() {
     Token retTok = next(); // consume retourner
     int line = retTok.line;
     auto val = parseExpression();
-    return std::make_shared<ReturnStmt>(val, line);
+    return makeNode<ReturnStmt>(val, line);
 }
 
 // Expression parsing
@@ -995,7 +1000,7 @@ std::shared_ptr<Expr> Parser::parseOr() {
     while (normalize(peek().value) == "ou") {
         Token opTok = next();
         auto right = parseAnd();
-        left = std::make_shared<BinaryExpr>("Ou", left, right, opTok.line);
+        left = makeNode<BinaryExpr>("Ou", left, right, opTok.line);
     }
     return left;
 }
@@ -1005,7 +1010,7 @@ std::shared_ptr<Expr> Parser::parseAnd() {
     while (normalize(peek().value) == "et") {
         Token opTok = next();
         auto right = parseComparison();
-        left = std::make_shared<BinaryExpr>("Et", left, right, opTok.line);
+        left = makeNode<BinaryExpr>("Et", left, right, opTok.line);
     }
     return left;
 }
@@ -1039,15 +1044,15 @@ std::shared_ptr<Expr> Parser::parseComparison() {
                         } while (match(TokenType::DELIMITER, ","));
                         expect(TokenType::DELIMITER, "}");
                     }
-                    right = std::make_shared<SetLiteralExpr>(std::move(elements), line);
+                    right = makeNode<SetLiteralExpr>(std::move(elements), line);
                 } else if (match(TokenType::DELIMITER, "[")) {
                     auto firstExpr = parseExpression();
                     if (match(TokenType::DELIMITER, "..")) {
                         auto secondExpr = parseExpression();
                         expect(TokenType::DELIMITER, "]");
-                        auto ge = std::make_shared<BinaryExpr>(">=", left, firstExpr, line);
-                        auto le = std::make_shared<BinaryExpr>("<=", left, secondExpr, line);
-                        left = std::make_shared<BinaryExpr>("Et", ge, le, line);
+                        auto ge = makeNode<BinaryExpr>(">=", left, firstExpr, line);
+                        auto le = makeNode<BinaryExpr>("<=", left, secondExpr, line);
+                        left = makeNode<BinaryExpr>("Et", ge, le, line);
                         continue;
                     } else {
                         std::vector<std::shared_ptr<Expr>> elements;
@@ -1056,7 +1061,7 @@ std::shared_ptr<Expr> Parser::parseComparison() {
                             elements.push_back(parseExpression());
                         }
                         expect(TokenType::DELIMITER, "]");
-                        right = std::make_shared<SetLiteralExpr>(std::move(elements), line);
+                        right = makeNode<SetLiteralExpr>(std::move(elements), line);
                     }
                 } else {
                     right = parseAddition();
@@ -1075,15 +1080,15 @@ std::shared_ptr<Expr> Parser::parseComparison() {
     if (comparisons.empty()) return left;
 
     // Chained comparisons: a <= b <= c -> (a <= b) Et (b <= c)
-    std::shared_ptr<Expr> result = std::make_shared<BinaryExpr>(
+    std::shared_ptr<Expr> result = makeNode<BinaryExpr>(
         comparisons[0].op, comparisons[0].left, comparisons[0].right, comparisons[0].line
     );
 
     for (size_t i = 1; i < comparisons.size(); i++) {
-        auto nextComp = std::make_shared<BinaryExpr>(
+        auto nextComp = makeNode<BinaryExpr>(
             comparisons[i].op, comparisons[i - 1].right, comparisons[i].right, comparisons[i].line
         );
-        result = std::make_shared<BinaryExpr>("Et", result, nextComp, comparisons[i].line);
+        result = makeNode<BinaryExpr>("Et", result, nextComp, comparisons[i].line);
     }
 
     return result;
@@ -1094,7 +1099,7 @@ std::shared_ptr<Expr> Parser::parseAddition() {
     while (peek().type == TokenType::OPERATOR && (peek().value == "+" || peek().value == "-")) {
         Token opTok = next();
         auto right = parseTerm();
-        left = std::make_shared<BinaryExpr>(opTok.value, left, right, opTok.line);
+        left = makeNode<BinaryExpr>(opTok.value, left, right, opTok.line);
     }
     return left;
 }
@@ -1106,7 +1111,7 @@ std::shared_ptr<Expr> Parser::parseTerm() {
             normalize(peek().value) == "div" || normalize(peek().value) == "mod")) {
         Token opTok = next();
         auto right = parseFactor();
-        left = std::make_shared<BinaryExpr>(normalize(opTok.value), left, right, opTok.line);
+        left = makeNode<BinaryExpr>(normalize(opTok.value), left, right, opTok.line);
     }
     return left;
 }
@@ -1117,13 +1122,13 @@ std::shared_ptr<Expr> Parser::parseFactor() {
     // Unary minus
     if (tok.type == TokenType::OPERATOR && tok.value == "-") {
         next();
-        return std::make_shared<UnaryExpr>("-", parseFactor(), tok.line);
+        return makeNode<UnaryExpr>("-", parseFactor(), tok.line);
     }
 
     // Unary Non
     if (normalize(tok.value) == "non") {
         next();
-        return std::make_shared<UnaryExpr>("Non", parseFactor(), tok.line);
+        return makeNode<UnaryExpr>("Non", parseFactor(), tok.line);
     }
 
     // Parentheses
@@ -1136,29 +1141,29 @@ std::shared_ptr<Expr> Parser::parseFactor() {
     // Number literal (integer)
     if (tok.type == TokenType::NUMBER) {
         next();
-        return std::make_shared<NumberExpr>(std::stoll(tok.value), tok.line);
+        return makeNode<NumberExpr>(std::stoll(tok.value), tok.line);
     }
 
     // Real literal (float)
     if (tok.type == TokenType::REAL) {
         next();
-        return std::make_shared<RealExpr>(std::stod(tok.value), tok.line);
+        return makeNode<RealExpr>(std::stod(tok.value), tok.line);
     }
 
     // String literal
     if (tok.type == TokenType::STRING) {
         next();
-        return std::make_shared<StringExpr>(tok.value, tok.line);
+        return makeNode<StringExpr>(tok.value, tok.line);
     }
 
     // Boolean literals
     if (normalize(tok.value) == "vrai") {
         next();
-        return std::make_shared<BoolExpr>(true, tok.line);
+        return makeNode<BoolExpr>(true, tok.line);
     }
     if (normalize(tok.value) == "faux") {
         next();
-        return std::make_shared<BoolExpr>(false, tok.line);
+        return makeNode<BoolExpr>(false, tok.line);
     }
 
     // Identifier: variable, array access, or function call
@@ -1176,15 +1181,15 @@ std::shared_ptr<Expr> Parser::parseFactor() {
                 } while (match(TokenType::DELIMITER, ","));
                 expect(TokenType::DELIMITER, ")");
             }
-            expr = std::make_shared<CallExpr>(idTok.value, std::move(args), line);
+            expr = makeNode<CallExpr>(idTok.value, std::move(args), line);
         } else {
-            expr = std::make_shared<VariableExpr>(idTok.value, line);
+            expr = makeNode<VariableExpr>(idTok.value, line);
         }
 
         while (true) {
             if (match(TokenType::DELIMITER, ".")) {
                 Token mTok = expect(TokenType::IDENTIFIER);
-                expr = std::make_shared<MemberAccessExpr>(expr, mTok.value, mTok.line);
+                expr = makeNode<MemberAccessExpr>(expr, mTok.value, mTok.line);
             } else if (peek().type == TokenType::DELIMITER && peek().value == "[") {
                 if (normalize(peek(1).value) == "pas") {
                     break;
@@ -1200,7 +1205,7 @@ std::shared_ptr<Expr> Parser::parseFactor() {
                     idx2 = parseExpression();
                     expect(TokenType::DELIMITER, "]");
                 }
-                expr = std::make_shared<ArrayAccessExpr>(expr, idx1, idx2, line);
+                expr = makeNode<ArrayAccessExpr>(expr, idx1, idx2, line);
             } else {
                 break;
             }
@@ -1347,7 +1352,7 @@ std::shared_ptr<Stmt> Parser::parseSwitch() {
         cases.push_back(std::move(sc));
     }
 
-    return std::make_shared<SwitchStmt>(targetExpr, std::move(cases), line);
+    return makeNode<SwitchStmt>(targetExpr, std::move(cases), line);
 }
 
 } // namespace algo

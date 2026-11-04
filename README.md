@@ -35,22 +35,29 @@ Le projet est structuré selon les standards des compilateurs modernes :
 ```text
 AlgorithmCompiler/
 ├── include/
-│   ├── ast.hpp                 # Arbre Syntaxique Abstrait (AST en C++20)
+│   ├── arena.hpp               # Allocateur d'arène (Bump/Arena Allocator pour l'AST)
+│   ├── ast.hpp                 # Arbre Syntaxique Abstrait & Interfaces Visiteur (ExprVisitor, StmtVisitor)
+│   ├── bytecode.hpp            # Définitions des Opcodes, Chunks et BytecodeProgram
+│   ├── bytecode_compiler.hpp   # Compilateur AST vers Bytecode linéaire
 │   ├── common.hpp              # Utilitaires de chaîne, encodage UTF-8, erreurs
 │   ├── environment.hpp         # Environnement d'exécution et table des symboles
-│   ├── interpreter.hpp         # Moteur d'interprétation et exécution dynamique
+│   ├── interpreter.hpp         # Moteur d'interprétation AST via le patron Visiteur
 │   ├── lexer.hpp               # Analyseur lexical (tokens, mots-clés, symboles)
 │   ├── parser.hpp              # Analyseur syntaxique descendant récursif
 │   ├── python_transpiler.hpp   # Transpilateur vers code Python idiomatique
 │   ├── semantic_analyzer.hpp   # Analyseur sémantique statique & diagnostics
 │   ├── token.hpp               # Définitions des types de jetons (Token)
-│   └── value.hpp               # Modèle de valeur polymorphe (entier, réel, chaîne, tableau, enregistrement, fichier)
+│   ├── value.hpp               # Modèle de valeur polymorphe (entier, réel, chaîne, tableau, enregistrement, fichier)
+│   └── vm.hpp                  # Machine Virtuelle à pile haute performance (Bytecode VM)
 ├── src/
-│   ├── main.cpp                # Point d'entrée de l'exécutable (algo / algo.exe)
+│   ├── main.cpp                # Point d'entrée CLI (algo / algo.exe) avec options --vm, --ast, --dump-bytecode
+│   ├── bytecode.cpp            # Gestion des chunks de bytecode et désassembleur
+│   ├── bytecode_compiler.cpp   # Implémentation de la compilation AST -> Bytecode
+│   ├── vm.cpp                  # Implémentation du moteur de la machine virtuelle
 │   ├── semantic_analyzer.cpp   # Implémentation de la vérification sémantique
 │   ├── python_transpiler.cpp   # Implémentation du transpilateur Python
-│   ├── interpreter.cpp         # Implémentation de l'interpréteur
-│   ├── parser.cpp              # Implémentation du parseur
+│   ├── interpreter.cpp         # Implémentation de l'interpréteur par Visiteur
+│   ├── parser.cpp              # Implémentation du parseur avec allocation d'arène
 │   ├── lexer.cpp               # Implémentation du lexer
 │   └── test_runner.cpp         # Runner autonome des 187 tests unitaires
 ├── Makefile                    # Makefile universel multiplateforme (Linux, macOS, Windows)
@@ -302,6 +309,25 @@ AlgorithmCompiler permet de générer du code **Python 3 moderne, propre et dire
 
 ---
 
+## ⚡ Architecture Haute Performance
+
+AlgorithmCompiler intègre une architecture de pointe inspirée des compilateurs modernes :
+
+### 1. Allocateur d'Arène (Arena / Bump Allocator)
+- **Allocation continue par blocs** : Tous les nœuds de l'AST (`Expr`, `Stmt`) sont alloués au sein d'une arène de mémoire contiguë (`Arena`), supprimant les milliers d'allocations de petits blocs dispersés sur le tas.
+- **Libération instantanée O(1)** : À la destruction de l'objet `Program`, l'intégralité de la mémoire des nœuds est désallouée en bloc, éliminant la fragmentation mémoire et accélérant les temps d'analyse.
+
+### 2. Patron Visiteur (Visitor Pattern)
+- **Suppression du surcoût RTTI** : Remplacement des cascades de `std::dynamic_pointer_cast` par le patron Visiteur (`ExprVisitor`, `StmtVisitor`).
+- **Dispatch virtuel O(1)** : L'interpréteur et le compilateur visitent directement les nœuds via `accept(*this)` en temps constant, assurant une traversée fluide et sans coût de vérification de type dynamique.
+
+### 3. Machine Virtuelle à Bytecode (Bytecode VM)
+- **Exécution linéaire ultra-rapide** : Le compilateur de bytecode (`BytecodeCompiler`) transforme l'AST en un flux d'instructions compactes (`Chunk`).
+- **Machine à pile optimisée** : La VM (`algo::VM`) exécute le bytecode directement via une boucle d'interprétation optimisée, divisant drastiquement les temps d'exécution des algorithmes itératifs lourds.
+- **Désassemblage transparent (`--dump-bytecode`)** : Visualisez pas à pas le code machine virtuel généré (opcodes, pile, constantes, offsets de saut).
+
+---
+
 ## 🛠 Installation & Compilation
 
 ### Prérequis
@@ -434,6 +460,9 @@ Enregistrer le code Python directement dans un fichier :
 - `-h, --help` : Affiche l'aide détaillée et les exemples d'utilisation.
 - `-v, --version` : Affiche le numéro de version du compilateur.
 - `--check` : Effectue uniquement l'analyse syntaxique et la vérification sémantique statique sans exécuter le code.
+- `--vm` : Exécute l'algorithme via la Machine Virtuelle à Bytecode (exécution linéaire ultra-rapide).
+- `--ast` : Exécute l'algorithme via l'Interpréteur d'AST optimisé (Patron Visiteur sans RTTI).
+- `--dump-bytecode` : Compile et affiche le désassemblage complet du bytecode généré sans exécuter.
 - `--to-python, --py [out.py]` : Transpile vers du code Python 3 (vers la sortie standard ou un fichier).
 - `--max-iter <N>` : Fixe la limite maximale d'itérations de boucle (défaut : 1 000 000).
 - `--timeout <ms>` : Fixe le délai maximal d'exécution en millisecondes (défaut : 50 000 ms).

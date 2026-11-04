@@ -1,42 +1,140 @@
 #pragma once
 
 #include "value.hpp"
+#include "arena.hpp"
 
 namespace algo {
 
+// Forward declarations for Expressions
+struct NumberExpr;
+struct RealExpr;
+struct StringExpr;
+struct BoolExpr;
+struct VariableExpr;
+struct ArrayAccessExpr;
+struct MemberAccessExpr;
+struct UnaryExpr;
+struct BinaryExpr;
+struct CallExpr;
+struct SetLiteralExpr;
+
+// Forward declarations for Statements
+struct AssignStmt;
+struct ArrayAssignStmt;
+struct MemberAssignStmt;
+struct WriteStmt;
+struct ReadStmt;
+struct IfStmt;
+struct ForStmt;
+struct WhileStmt;
+struct RepeatStmt;
+struct CallStmt;
+struct SwitchStmt;
+struct ReturnStmt;
+struct LocalVarDeclStmt;
+
+enum class ExprKind {
+    Number,
+    Real,
+    String,
+    Bool,
+    Variable,
+    ArrayAccess,
+    MemberAccess,
+    Unary,
+    Binary,
+    Call,
+    SetLiteral
+};
+
+enum class StmtKind {
+    Assign,
+    ArrayAssign,
+    MemberAssign,
+    Write,
+    Read,
+    If,
+    For,
+    While,
+    Repeat,
+    Call,
+    Switch,
+    Return,
+    LocalVarDecl
+};
+
+class ExprVisitor {
+public:
+    virtual ~ExprVisitor() = default;
+    virtual void visit(NumberExpr& node) = 0;
+    virtual void visit(RealExpr& node) = 0;
+    virtual void visit(StringExpr& node) = 0;
+    virtual void visit(BoolExpr& node) = 0;
+    virtual void visit(VariableExpr& node) = 0;
+    virtual void visit(ArrayAccessExpr& node) = 0;
+    virtual void visit(MemberAccessExpr& node) = 0;
+    virtual void visit(UnaryExpr& node) = 0;
+    virtual void visit(BinaryExpr& node) = 0;
+    virtual void visit(CallExpr& node) = 0;
+    virtual void visit(SetLiteralExpr& node) = 0;
+};
+
+class StmtVisitor {
+public:
+    virtual ~StmtVisitor() = default;
+    virtual void visit(AssignStmt& node) = 0;
+    virtual void visit(ArrayAssignStmt& node) = 0;
+    virtual void visit(MemberAssignStmt& node) = 0;
+    virtual void visit(WriteStmt& node) = 0;
+    virtual void visit(ReadStmt& node) = 0;
+    virtual void visit(IfStmt& node) = 0;
+    virtual void visit(ForStmt& node) = 0;
+    virtual void visit(WhileStmt& node) = 0;
+    virtual void visit(RepeatStmt& node) = 0;
+    virtual void visit(CallStmt& node) = 0;
+    virtual void visit(SwitchStmt& node) = 0;
+    virtual void visit(ReturnStmt& node) = 0;
+    virtual void visit(LocalVarDeclStmt& node) = 0;
+};
+
 // Base Expression
 struct Expr {
+    ExprKind kind;
+    int line = -1;
+
+    explicit Expr(ExprKind k, int l = -1) : kind(k), line(l) {}
     virtual ~Expr() = default;
+    virtual void accept(ExprVisitor& visitor) = 0;
 };
 
 struct NumberExpr : public Expr {
     int64_t value;
-    int line;
-    NumberExpr(int64_t v, int line = -1) : value(v), line(line) {}
+    NumberExpr(int64_t v, int line = -1) : Expr(ExprKind::Number, line), value(v) {}
+    void accept(ExprVisitor& visitor) override { visitor.visit(*this); }
 };
 
 struct RealExpr : public Expr {
     double value;
-    int line;
-    RealExpr(double v, int line = -1) : value(v), line(line) {}
+    RealExpr(double v, int line = -1) : Expr(ExprKind::Real, line), value(v) {}
+    void accept(ExprVisitor& visitor) override { visitor.visit(*this); }
 };
 
 struct StringExpr : public Expr {
     std::string value;
-    int line;
-    StringExpr(std::string v, int line = -1) : value(std::move(v)), line(line) {}
+    StringExpr(std::string v, int line = -1) : Expr(ExprKind::String, line), value(std::move(v)) {}
+    void accept(ExprVisitor& visitor) override { visitor.visit(*this); }
 };
 
 struct BoolExpr : public Expr {
     bool value;
-    int line;
-    BoolExpr(bool v, int line = -1) : value(v), line(line) {}
+    BoolExpr(bool v, int line = -1) : Expr(ExprKind::Bool, line), value(v) {}
+    void accept(ExprVisitor& visitor) override { visitor.visit(*this); }
 };
 
 struct VariableExpr : public Expr {
     std::string name;
-    int line;
-    VariableExpr(std::string n, int line = -1) : name(std::move(n)), line(line) {}
+    VariableExpr(std::string n, int line = -1) : Expr(ExprKind::Variable, line), name(std::move(n)) {}
+    void accept(ExprVisitor& visitor) override { visitor.visit(*this); }
 };
 
 struct ArrayAccessExpr : public Expr {
@@ -44,68 +142,73 @@ struct ArrayAccessExpr : public Expr {
     std::string name;
     std::shared_ptr<Expr> index;
     std::shared_ptr<Expr> index2; // for 2D
-    int line;
     ArrayAccessExpr(std::string n, std::shared_ptr<Expr> idx, std::shared_ptr<Expr> idx2 = nullptr, int line = -1)
-        : target(nullptr), name(std::move(n)), index(std::move(idx)), index2(std::move(idx2)), line(line) {}
+        : Expr(ExprKind::ArrayAccess, line), target(nullptr), name(std::move(n)), index(std::move(idx)), index2(std::move(idx2)) {}
     ArrayAccessExpr(std::shared_ptr<Expr> tgt, std::shared_ptr<Expr> idx, std::shared_ptr<Expr> idx2 = nullptr, int line = -1)
-        : target(tgt), index(std::move(idx)), index2(std::move(idx2)), line(line) {
+        : Expr(ExprKind::ArrayAccess, line), target(tgt), index(std::move(idx)), index2(std::move(idx2)) {
         if (auto v = std::dynamic_pointer_cast<VariableExpr>(tgt)) {
             name = v->name;
         }
     }
+    void accept(ExprVisitor& visitor) override { visitor.visit(*this); }
 };
 
 struct MemberAccessExpr : public Expr {
     std::shared_ptr<Expr> object;
     std::string member;
-    int line;
     MemberAccessExpr(std::shared_ptr<Expr> obj, std::string m, int line = -1)
-        : object(std::move(obj)), member(std::move(m)), line(line) {}
+        : Expr(ExprKind::MemberAccess, line), object(std::move(obj)), member(std::move(m)) {}
+    void accept(ExprVisitor& visitor) override { visitor.visit(*this); }
 };
 
 struct UnaryExpr : public Expr {
     std::string op;
     std::shared_ptr<Expr> operand;
-    int line;
     UnaryExpr(std::string op, std::shared_ptr<Expr> operand, int line = -1)
-        : op(std::move(op)), operand(std::move(operand)), line(line) {}
+        : Expr(ExprKind::Unary, line), op(std::move(op)), operand(std::move(operand)) {}
+    void accept(ExprVisitor& visitor) override { visitor.visit(*this); }
 };
 
 struct BinaryExpr : public Expr {
     std::string op;
     std::shared_ptr<Expr> left;
     std::shared_ptr<Expr> right;
-    int line;
     BinaryExpr(std::string op, std::shared_ptr<Expr> left, std::shared_ptr<Expr> right, int line = -1)
-        : op(std::move(op)), left(std::move(left)), right(std::move(right)), line(line) {}
+        : Expr(ExprKind::Binary, line), op(std::move(op)), left(std::move(left)), right(std::move(right)) {}
+    void accept(ExprVisitor& visitor) override { visitor.visit(*this); }
 };
 
 struct CallExpr : public Expr {
     std::string name;
     std::vector<std::shared_ptr<Expr>> args;
-    int line;
     CallExpr(std::string n, std::vector<std::shared_ptr<Expr>> a, int line = -1)
-        : name(std::move(n)), args(std::move(a)), line(line) {}
+        : Expr(ExprKind::Call, line), name(std::move(n)), args(std::move(a)) {}
+    void accept(ExprVisitor& visitor) override { visitor.visit(*this); }
 };
 
 struct SetLiteralExpr : public Expr {
     std::vector<std::shared_ptr<Expr>> elements;
-    int line;
     SetLiteralExpr(std::vector<std::shared_ptr<Expr>> el, int line = -1)
-        : elements(std::move(el)), line(line) {}
+        : Expr(ExprKind::SetLiteral, line), elements(std::move(el)) {}
+    void accept(ExprVisitor& visitor) override { visitor.visit(*this); }
 };
 
 // Base Statement
 struct Stmt {
+    StmtKind kind;
     int line = -1;
+
+    explicit Stmt(StmtKind k, int l = -1) : kind(k), line(l) {}
     virtual ~Stmt() = default;
+    virtual void accept(StmtVisitor& visitor) = 0;
 };
 
 struct AssignStmt : public Stmt {
     std::string target;
     std::shared_ptr<Expr> value;
     AssignStmt(std::string t, std::shared_ptr<Expr> v, int line = -1)
-        : target(std::move(t)), value(std::move(v)) { this->line = line; }
+        : Stmt(StmtKind::Assign, line), target(std::move(t)), value(std::move(v)) {}
+    void accept(StmtVisitor& visitor) override { visitor.visit(*this); }
 };
 
 struct ArrayAssignStmt : public Stmt {
@@ -115,9 +218,10 @@ struct ArrayAssignStmt : public Stmt {
     std::shared_ptr<Expr> index2; // for 2D
     std::shared_ptr<Expr> value;
     ArrayAssignStmt(std::string t, std::shared_ptr<Expr> idx, std::shared_ptr<Expr> val, std::shared_ptr<Expr> idx2 = nullptr, int line = -1)
-        : targetExpr(nullptr), target(std::move(t)), index(std::move(idx)), index2(std::move(idx2)), value(std::move(val)) { this->line = line; }
+        : Stmt(StmtKind::ArrayAssign, line), targetExpr(nullptr), target(std::move(t)), index(std::move(idx)), index2(std::move(idx2)), value(std::move(val)) {}
     ArrayAssignStmt(std::shared_ptr<Expr> tgt, std::shared_ptr<Expr> idx, std::shared_ptr<Expr> val, std::shared_ptr<Expr> idx2 = nullptr, int line = -1)
-        : targetExpr(std::move(tgt)), target(""), index(std::move(idx)), index2(std::move(idx2)), value(std::move(val)) { this->line = line; }
+        : Stmt(StmtKind::ArrayAssign, line), targetExpr(std::move(tgt)), target(""), index(std::move(idx)), index2(std::move(idx2)), value(std::move(val)) {}
+    void accept(StmtVisitor& visitor) override { visitor.visit(*this); }
 };
 
 struct MemberAssignStmt : public Stmt {
@@ -125,7 +229,8 @@ struct MemberAssignStmt : public Stmt {
     std::string member;
     std::shared_ptr<Expr> value;
     MemberAssignStmt(std::shared_ptr<Expr> t, std::string m, std::shared_ptr<Expr> v, int line = -1)
-        : target(std::move(t)), member(std::move(m)), value(std::move(v)) { this->line = line; }
+        : Stmt(StmtKind::MemberAssign, line), target(std::move(t)), member(std::move(m)), value(std::move(v)) {}
+    void accept(StmtVisitor& visitor) override { visitor.visit(*this); }
 };
 
 struct WriteStmt : public Stmt {
@@ -134,7 +239,8 @@ struct WriteStmt : public Stmt {
     std::string fin = "\n";
     bool isNl = false;
     WriteStmt(std::vector<std::shared_ptr<Expr>> a, std::string sep = " ", std::string fin = "\n", int line = -1, bool isNl = false)
-        : args(std::move(a)), sep(std::move(sep)), fin(std::move(fin)), isNl(isNl) { this->line = line; }
+        : Stmt(StmtKind::Write, line), args(std::move(a)), sep(std::move(sep)), fin(std::move(fin)), isNl(isNl) {}
+    void accept(StmtVisitor& visitor) override { visitor.visit(*this); }
 };
 
 struct ReadTarget {
@@ -150,7 +256,8 @@ struct ReadTarget {
 struct ReadStmt : public Stmt {
     std::vector<ReadTarget> targets;
     ReadStmt(std::vector<ReadTarget> t, int line = -1)
-        : targets(std::move(t)) { this->line = line; }
+        : Stmt(StmtKind::Read, line), targets(std::move(t)) {}
+    void accept(StmtVisitor& visitor) override { visitor.visit(*this); }
 };
 
 struct ElseIfBlock {
@@ -165,8 +272,9 @@ struct IfStmt : public Stmt {
     std::vector<std::shared_ptr<Stmt>> elseBlock;
     IfStmt(std::shared_ptr<Expr> cond, std::vector<std::shared_ptr<Stmt>> th,
            std::vector<ElseIfBlock> ei = {}, std::vector<std::shared_ptr<Stmt>> el = {}, int line = -1)
-        : condition(std::move(cond)), thenBlock(std::move(th)),
-          elseIfBlocks(std::move(ei)), elseBlock(std::move(el)) { this->line = line; }
+        : Stmt(StmtKind::If, line), condition(std::move(cond)), thenBlock(std::move(th)),
+          elseIfBlocks(std::move(ei)), elseBlock(std::move(el)) {}
+    void accept(StmtVisitor& visitor) override { visitor.visit(*this); }
 };
 
 struct ForStmt : public Stmt {
@@ -177,29 +285,33 @@ struct ForStmt : public Stmt {
     std::vector<std::shared_ptr<Stmt>> body;
     ForStmt(std::string v, std::shared_ptr<Expr> s, std::shared_ptr<Expr> e,
             std::shared_ptr<Expr> st, std::vector<std::shared_ptr<Stmt>> b, int line = -1)
-        : varName(std::move(v)), start(std::move(s)), end(std::move(e)),
-          step(std::move(st)), body(std::move(b)) { this->line = line; }
+        : Stmt(StmtKind::For, line), varName(std::move(v)), start(std::move(s)), end(std::move(e)),
+          step(std::move(st)), body(std::move(b)) {}
+    void accept(StmtVisitor& visitor) override { visitor.visit(*this); }
 };
 
 struct WhileStmt : public Stmt {
     std::shared_ptr<Expr> condition;
     std::vector<std::shared_ptr<Stmt>> body;
     WhileStmt(std::shared_ptr<Expr> cond, std::vector<std::shared_ptr<Stmt>> b, int line = -1)
-        : condition(std::move(cond)), body(std::move(b)) { this->line = line; }
+        : Stmt(StmtKind::While, line), condition(std::move(cond)), body(std::move(b)) {}
+    void accept(StmtVisitor& visitor) override { visitor.visit(*this); }
 };
 
 struct RepeatStmt : public Stmt {
     std::vector<std::shared_ptr<Stmt>> body;
     std::shared_ptr<Expr> condition;
     RepeatStmt(std::vector<std::shared_ptr<Stmt>> b, std::shared_ptr<Expr> cond, int line = -1)
-        : body(std::move(b)), condition(std::move(cond)) { this->line = line; }
+        : Stmt(StmtKind::Repeat, line), body(std::move(b)), condition(std::move(cond)) {}
+    void accept(StmtVisitor& visitor) override { visitor.visit(*this); }
 };
 
 struct CallStmt : public Stmt {
     std::string name;
     std::vector<std::shared_ptr<Expr>> args;
     CallStmt(std::string n, std::vector<std::shared_ptr<Expr>> a, int line = -1)
-        : name(std::move(n)), args(std::move(a)) { this->line = line; }
+        : Stmt(StmtKind::Call, line), name(std::move(n)), args(std::move(a)) {}
+    void accept(StmtVisitor& visitor) override { visitor.visit(*this); }
 };
 
 struct SwitchCaseItem {
@@ -219,13 +331,15 @@ struct SwitchStmt : public Stmt {
     std::shared_ptr<Expr> expr;
     std::vector<SwitchCase> cases;
     SwitchStmt(std::shared_ptr<Expr> e, std::vector<SwitchCase> c, int line = -1)
-        : expr(std::move(e)), cases(std::move(c)) { this->line = line; }
+        : Stmt(StmtKind::Switch, line), expr(std::move(e)), cases(std::move(c)) {}
+    void accept(StmtVisitor& visitor) override { visitor.visit(*this); }
 };
 
 struct ReturnStmt : public Stmt {
     std::shared_ptr<Expr> value;
     ReturnStmt(std::shared_ptr<Expr> v, int line = -1)
-        : value(std::move(v)) { this->line = line; }
+        : Stmt(StmtKind::Return, line), value(std::move(v)) {}
+    void accept(StmtVisitor& visitor) override { visitor.visit(*this); }
 };
 
 enum class TypeKind {
@@ -253,7 +367,8 @@ struct LocalVarDeclStmt : public Stmt {
     std::string varType;
     TypeSpec typeSpec;
     LocalVarDeclStmt(std::vector<std::string> n, std::string t, int line = -1)
-        : names(std::move(n)), varType(std::move(t)) { this->line = line; }
+        : Stmt(StmtKind::LocalVarDecl, line), names(std::move(n)), varType(std::move(t)) {}
+    void accept(StmtVisitor& visitor) override { visitor.visit(*this); }
 };
 
 // Declarations
@@ -302,6 +417,7 @@ struct Program {
     std::vector<ProcedureDecl> procedures;
     std::vector<FunctionDecl> functions;
     std::vector<std::shared_ptr<Stmt>> mainBody;
+    std::shared_ptr<Arena> arena;
 };
 
 } // namespace algo

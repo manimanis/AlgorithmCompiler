@@ -3,9 +3,12 @@
 #include "../include/interpreter.hpp"
 #include "../include/python_transpiler.hpp"
 #include "../include/semantic_analyzer.hpp"
+#include "../include/bytecode_compiler.hpp"
+#include "../include/vm.hpp"
 #include "../include/version.hpp"
 #include <fstream>
 #include <iostream>
+#include <iomanip>
 #include <filesystem>
 
 using namespace algo;
@@ -55,7 +58,7 @@ static void printHelp(const std::string& progPath) {
     }
 
     std::cout << "==============================================================================\n"
-              << " AlgorithmCompiler v" << getVersionString() << " - Interpréteur, Analyseur Sémantique & Transpilateur\n"
+              << " AlgorithmCompiler v" << getVersionString() << " - Interpréteur, VM Bytecode & Transpilateur\n"
               << " Standard algorithmique de l'enseignement secondaire & supérieur (Bac Tunisie)\n"
               << "==============================================================================\n\n"
               << "UTILISATION :\n"
@@ -69,6 +72,12 @@ static void printHelp(const std::string& progPath) {
               << "    --check                       Effectue uniquement l'analyse syntaxique et sémantique\n"
               << "                                  (vérification des types, portées, arités, etc.)\n"
               << "                                  sans exécuter l'algorithme.\n"
+              << "    --vm                          Exécute l'algorithme via la Machine Virtuelle à Bytecode\n"
+              << "                                  haute performance.\n"
+              << "    --ast                         Exécute l'algorithme via l'Interpréteur d'AST (Patron Visiteur).\n"
+              << "    --compare                     Compare directement la vitesse d'exécution entre AST et VM.\n"
+              << "    --time, --bench               Mesure et affiche le temps d'exécution précis en ms.\n"
+              << "    --dump-bytecode               Affiche le désassemblage du bytecode généré sans exécuter.\n"
               << "    --to-python, --py [out.py]    Transpile l'algorithme vers du code Python 3.\n"
               << "                                  Si [out.py] est fourni, écrit le code dans ce fichier ;\n"
               << "                                  sinon, affiche le résultat sur la sortie standard.\n\n"
@@ -81,6 +90,8 @@ static void printHelp(const std::string& progPath) {
               << "                                  (utilisé par les fonctions Aléa / Hasard).\n\n"
               << "EXEMPLES :\n"
               << "    " << progName << " mon_programme.alg\n"
+              << "    " << progName << " mon_programme.alg --vm\n"
+              << "    " << progName << " mon_programme.alg --dump-bytecode\n"
               << "    " << progName << " mon_programme.alg --check\n"
               << "    " << progName << " mon_programme.alg --to-python\n"
               << "    " << progName << " mon_programme.alg --to-python sortie.py\n"
@@ -101,6 +112,10 @@ int main(int argc, char* argv[]) {
     bool toPython = false;
     std::string pyOutputPath;
     bool checkOnly = false;
+    bool useVM = false;
+    bool dumpBytecode = false;
+    bool compareModes = false;
+    bool showTime = false;
 
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
@@ -112,6 +127,16 @@ int main(int argc, char* argv[]) {
             return 0;
         } else if (arg == "--check") {
             checkOnly = true;
+        } else if (arg == "--vm") {
+            useVM = true;
+        } else if (arg == "--ast") {
+            useVM = false;
+        } else if (arg == "--compare") {
+            compareModes = true;
+        } else if (arg == "--time" || arg == "--bench") {
+            showTime = true;
+        } else if (arg == "--dump-bytecode") {
+            dumpBytecode = true;
         } else if (arg == "--max-iter" && i + 1 < argc) {
             options.maxIterations = std::stoull(argv[++i]);
         } else if ((arg == "--timeout" || arg == "--timeout-ms") && i + 1 < argc) {
@@ -171,12 +196,83 @@ int main(int argc, char* argv[]) {
             return 0;
         }
 
+        if (dumpBytecode) {
+            BytecodeCompiler compiler;
+            BytecodeProgram bcProg = compiler.compile(prog);
+            bcProg.mainChunk.disassemble("Bytecode Principal: " + prog.name);
+            for (const auto& kv : bcProg.subroutines) {
+                kv.second.chunk.disassemble("Sous-programme: " + kv.first);
+            }
+            return 0;
+        }
+
+        if (compareModes) {
+            std::string astOutput;
+            Interpreter interpreter(options);
+            interpreter.setOutputCallback([&astOutput](const std::string& text) {
+                astOutput += text;
+            });
+            auto t0_ast = std::chrono::high_resolution_clock::now();
+            interpreter.run(prog);
+            auto t1_ast = std::chrono::high_resolution_clock::now();
+            double astTimeMs = std::chrono::duration<double, std::milli>(t1_ast - t0_ast).count();
+
+            std::string vmOutput;
+            BytecodeCompiler compiler;
+            BytecodeProgram bcProg = compiler.compile(prog);
+            VM vm(options);
+            vm.setOutputCallback([&vmOutput](const std::string& text) {
+                vmOutput += text;
+            });
+            auto t0_vm = std::chrono::high_resolution_clock::now();
+            vm.run(bcProg);
+            auto t1_vm = std::chrono::high_resolution_clock::now();
+            double vmTimeMs = std::chrono::duration<double, std::milli>(t1_vm - t0_vm).count();
+
+            std::cout << "==============================================================================\n"
+                      << "              COMPARAISON DES PERFORMANCES : MODE AST vs MODE VM              \n"
+                      << "==============================================================================\n"
+                      << " Programme : " << filePath << "\n\n"
+                      << " Sortie standard identique : " << (astOutput == vmOutput ? "OUI [100% CONFORME]" : "DIFFERENTE") << "\n\n"
+                      << "  - Mode AST (Tree-walking Visiteur) : " << std::fixed << std::setprecision(3) << astTimeMs << " ms\n"
+                      << "  - Mode VM  (Machine Virtuelle)     : " << std::fixed << std::setprecision(3) << vmTimeMs << " ms\n";
+            if (vmTimeMs > 0.0001) {
+                double speedup = astTimeMs / vmTimeMs;
+                std::cout << "\n -> Gain de vitesse (Speedup)        : " << std::fixed << std::setprecision(2) << speedup << "x plus rapide avec la VM !\n";
+            }
+            std::cout << "==============================================================================\n";
+            return 0;
+        }
+
+        if (useVM) {
+            BytecodeCompiler compiler;
+            BytecodeProgram bcProg = compiler.compile(prog);
+            VM vm(options);
+            vm.setOutputCallback([](const std::string& text) {
+                std::cout << text;
+            });
+            auto t0 = std::chrono::high_resolution_clock::now();
+            vm.run(bcProg);
+            auto t1 = std::chrono::high_resolution_clock::now();
+            if (showTime) {
+                double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+                std::cout << "\n[VM] Temps d'exécution : " << std::fixed << std::setprecision(3) << ms << " ms\n";
+            }
+            return 0;
+        }
+
         Interpreter interpreter(options);
         interpreter.setOutputCallback([](const std::string& text) {
             std::cout << text;
         });
 
+        auto t0 = std::chrono::high_resolution_clock::now();
         interpreter.run(prog);
+        auto t1 = std::chrono::high_resolution_clock::now();
+        if (showTime) {
+            double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+            std::cout << "\n[AST] Temps d'exécution : " << std::fixed << std::setprecision(3) << ms << " ms\n";
+        }
         return 0;
     } catch (const AlgoError& e) {
         std::cerr << e.what() << std::endl;

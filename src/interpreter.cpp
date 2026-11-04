@@ -188,11 +188,14 @@ void Interpreter::executeBlock(const std::vector<std::shared_ptr<Stmt>>& stmts, 
 }
 
 void Interpreter::assignToLValue(const std::shared_ptr<Expr>& lhs, const Value& val, const std::shared_ptr<Environment>& env, int line) {
-    if (auto varExpr = std::dynamic_pointer_cast<VariableExpr>(lhs)) {
+    if (!lhs) throw AlgoError("Cible d'affectation non valide", line);
+    if (lhs->kind == ExprKind::Variable) {
+        auto* varExpr = static_cast<VariableExpr*>(lhs.get());
         env->set(varExpr->name, val, line > 0 ? line : varExpr->line);
         return;
     }
-    if (auto memExpr = std::dynamic_pointer_cast<MemberAccessExpr>(lhs)) {
+    if (lhs->kind == ExprKind::MemberAccess) {
+        auto* memExpr = static_cast<MemberAccessExpr*>(lhs.get());
         Value obj = evaluateExpression(memExpr->object, env);
         if (!obj.isRecord()) {
             throw AlgoError("Accès à un champ sur un objet qui n'est pas un enregistrement", line > 0 ? line : memExpr->line);
@@ -201,7 +204,8 @@ void Interpreter::assignToLValue(const std::shared_ptr<Expr>& lhs, const Value& 
         assignToLValue(memExpr->object, obj, env, line);
         return;
     }
-    if (auto arrExpr = std::dynamic_pointer_cast<ArrayAccessExpr>(lhs)) {
+    if (lhs->kind == ExprKind::ArrayAccess) {
+        auto* arrExpr = static_cast<ArrayAccessExpr*>(lhs.get());
         Value arr;
         if (arrExpr->target) {
             arr = evaluateExpression(arrExpr->target, env);
@@ -327,234 +331,272 @@ Value Interpreter::readFileData(AlgoFile& f) {
 }
 
 void Interpreter::executeStatement(const std::shared_ptr<Stmt>& stmt, const std::shared_ptr<Environment>& env) {
-    if (returnValue_.set) return;
+    if (!stmt || returnValue_.set) return;
+    auto prevEnv = currentEnv_;
+    currentEnv_ = env;
+    stmt->accept(*this);
+    currentEnv_ = prevEnv;
+}
 
-    if (auto a = std::dynamic_pointer_cast<AssignStmt>(stmt)) {
-        Value val = evaluateExpression(a->value, env);
-        assignToLValue(std::make_shared<VariableExpr>(a->target, a->line), val, env, a->line);
-    } else if (auto aa = std::dynamic_pointer_cast<ArrayAssignStmt>(stmt)) {
-        Value val = evaluateExpression(aa->value, env);
-        if (aa->targetExpr) {
-            assignToLValue(std::make_shared<ArrayAccessExpr>(aa->targetExpr, aa->index, aa->index2, aa->line), val, env, aa->line);
-        } else {
-            assignToLValue(std::make_shared<ArrayAccessExpr>(aa->target, aa->index, aa->index2, aa->line), val, env, aa->line);
-        }
-    } else if (auto ma = std::dynamic_pointer_cast<MemberAssignStmt>(stmt)) {
-        Value val = evaluateExpression(ma->value, env);
-        assignToLValue(std::make_shared<MemberAccessExpr>(ma->target, ma->member, ma->line), val, env, ma->line);
-    } else if (auto w = std::dynamic_pointer_cast<WriteStmt>(stmt)) {
-        bool isFileWrite = false;
-        std::string fileLogicalName;
-        if (!w->args.empty()) {
-            if (auto varExpr = std::dynamic_pointer_cast<VariableExpr>(w->args[0])) {
-                if (env->has(varExpr->name)) {
-                    Value v = env->get(varExpr->name);
-                    if (v.isFile()) {
-                        isFileWrite = true;
-                        fileLogicalName = normalize(varExpr->name);
-                    }
-                }
-            }
-        }
+void Interpreter::visit(AssignStmt& a) {
+    Value val = evaluateExpression(a.value, currentEnv_);
+    auto lhs = std::make_shared<VariableExpr>(a.target, a.line);
+    assignToLValue(lhs, val, currentEnv_, a.line);
+}
 
-        if (isFileWrite) {
-            auto it = openFiles_.find(fileLogicalName);
-            if (it == openFiles_.end() || !it->second->isOpen) {
-                throw AlgoError("Fichier '" + fileLogicalName + "' non ouvert", w->line);
-            }
-            auto& f = *(it->second);
-            if (f.isText) {
-                for (size_t i = 1; i < w->args.size(); i++) {
-                    Value v = evaluateExpression(w->args[i], env);
-                    f.stream << v.asString();
-                }
-                if (w->isNl) {
-                    f.stream << "\n";
-                }
-                f.stream.flush();
-            } else {
-                for (size_t i = 1; i < w->args.size(); i++) {
-                    Value v = evaluateExpression(w->args[i], env);
-                    writeFileData(f, v);
-                }
-                f.stream.flush();
-            }
-            return;
-        }
+void Interpreter::visit(ArrayAssignStmt& aa) {
+    Value val = evaluateExpression(aa.value, currentEnv_);
+    if (aa.targetExpr) {
+        auto lhs = std::make_shared<ArrayAccessExpr>(aa.targetExpr, aa.index, aa.index2, aa.line);
+        assignToLValue(lhs, val, currentEnv_, aa.line);
+    } else {
+        auto lhs = std::make_shared<ArrayAccessExpr>(aa.target, aa.index, aa.index2, aa.line);
+        assignToLValue(lhs, val, currentEnv_, aa.line);
+    }
+}
 
-        std::string lineStr;
-        for (size_t i = 0; i < w->args.size(); i++) {
-            Value val = evaluateExpression(w->args[i], env);
-            if (val.isBool()) {
-                lineStr += val.asBool() ? "Vrai" : "Faux";
-            } else {
-                lineStr += val.asString();
-            }
-            if (i + 1 < w->args.size()) {
-                lineStr += w->sep;
-            }
-        }
-        lineStr += w->fin;
-        addOutput(lineStr);
-    } else if (auto r = std::dynamic_pointer_cast<ReadStmt>(stmt)) {
-        if (r->targets.size() == 2) {
-            std::string t0Name = r->targets[0].name;
-            if (env->has(t0Name)) {
-                Value v = env->get(t0Name);
+void Interpreter::visit(MemberAssignStmt& ma) {
+    Value val = evaluateExpression(ma.value, currentEnv_);
+    auto lhs = std::make_shared<MemberAccessExpr>(ma.target, ma.member, ma.line);
+    assignToLValue(lhs, val, currentEnv_, ma.line);
+}
+
+void Interpreter::visit(WriteStmt& w) {
+    bool isFileWrite = false;
+    std::string fileLogicalName;
+    if (!w.args.empty()) {
+        if (w.args[0]->kind == ExprKind::Variable) {
+            auto* varExpr = static_cast<VariableExpr*>(w.args[0].get());
+            if (currentEnv_->has(varExpr->name)) {
+                Value v = currentEnv_->get(varExpr->name);
                 if (v.isFile()) {
-                    std::string fNorm = normalize(t0Name);
-                    auto it = openFiles_.find(fNorm);
-                    if (it == openFiles_.end() || !it->second->isOpen) {
-                        throw AlgoError("Fichier '" + t0Name + "' non ouvert", r->line);
-                    }
-                    auto& f = *(it->second);
-                    if (f.isText) {
-                        std::ostringstream ss;
-                        ss << f.stream.rdbuf();
-                        std::string content = ss.str();
-                        assignToLValue(r->targets[1].targetExpr, Value(content), env, r->line);
-                    } else {
-                        Value val = readFileData(f);
-                        assignToLValue(r->targets[1].targetExpr, val, env, r->line);
-                    }
-                    return;
+                    isFileWrite = true;
+                    fileLogicalName = normalize(varExpr->name);
                 }
             }
         }
+    }
 
-        for (const auto& tgt : r->targets) {
-            Value currentVal = evaluateExpression(tgt.targetExpr, env);
-            std::string inputStr = requestInput("Saisir une valeur :");
-            Value converted = convertInput(inputStr, currentVal);
-            assignToLValue(tgt.targetExpr, converted, env, r->line);
+    if (isFileWrite) {
+        auto it = openFiles_.find(fileLogicalName);
+        if (it == openFiles_.end() || !it->second->isOpen) {
+            throw AlgoError("Fichier '" + fileLogicalName + "' non ouvert", w.line);
         }
-    } else if (auto ifs = std::dynamic_pointer_cast<IfStmt>(stmt)) {
-        if (evaluateExpression(ifs->condition, env).asBool()) {
-            executeBlock(ifs->thenBlock, env);
+        auto& f = *(it->second);
+        if (f.isText) {
+            for (size_t i = 1; i < w.args.size(); i++) {
+                Value v = evaluateExpression(w.args[i], currentEnv_);
+                f.stream << v.asString();
+            }
+            if (w.isNl) {
+                f.stream << "\n";
+            }
+            f.stream.flush();
         } else {
-            bool matched = false;
-            for (const auto& eb : ifs->elseIfBlocks) {
-                if (evaluateExpression(eb.condition, env).asBool()) {
-                    executeBlock(eb.body, env);
-                    matched = true;
-                    break;
+            for (size_t i = 1; i < w.args.size(); i++) {
+                Value v = evaluateExpression(w.args[i], currentEnv_);
+                writeFileData(f, v);
+            }
+            f.stream.flush();
+        }
+        return;
+    }
+
+    std::string lineStr;
+    for (size_t i = 0; i < w.args.size(); i++) {
+        Value val = evaluateExpression(w.args[i], currentEnv_);
+        if (val.isBool()) {
+            lineStr += val.asBool() ? "Vrai" : "Faux";
+        } else {
+            lineStr += val.asString();
+        }
+        if (i + 1 < w.args.size()) {
+            lineStr += w.sep;
+        }
+    }
+    lineStr += w.fin;
+    addOutput(lineStr);
+}
+
+void Interpreter::visit(ReadStmt& r) {
+    if (r.targets.size() == 2) {
+        std::string t0Name = r.targets[0].name;
+        if (currentEnv_->has(t0Name)) {
+            Value v = currentEnv_->get(t0Name);
+            if (v.isFile()) {
+                std::string fNorm = normalize(t0Name);
+                auto it = openFiles_.find(fNorm);
+                if (it == openFiles_.end() || !it->second->isOpen) {
+                    throw AlgoError("Fichier '" + t0Name + "' non ouvert", r.line);
                 }
-            }
-            if (!matched && !ifs->elseBlock.empty()) {
-                executeBlock(ifs->elseBlock, env);
+                auto& f = *(it->second);
+                if (f.isText) {
+                    std::ostringstream ss;
+                    ss << f.stream.rdbuf();
+                    std::string content = ss.str();
+                    assignToLValue(r.targets[1].targetExpr, Value(content), currentEnv_, r.line);
+                } else {
+                    Value val = readFileData(f);
+                    assignToLValue(r.targets[1].targetExpr, val, currentEnv_, r.line);
+                }
+                return;
             }
         }
-    } else if (auto fors = std::dynamic_pointer_cast<ForStmt>(stmt)) {
-        Value startVal = evaluateExpression(fors->start, env);
-        Value endVal = evaluateExpression(fors->end, env);
-        Value stepVal = fors->step ? evaluateExpression(fors->step, env) : Value((int64_t)1);
+    }
 
-        if (!startVal.isNumber() || !endVal.isNumber() || !stepVal.isNumber()) {
-            throw AlgoError("Les bornes de la boucle Pour doivent être des nombres", fors->line);
-        }
-        int64_t step = stepVal.asInt();
-        if (step == 0) {
-            throw AlgoError("Le pas de la boucle Pour ne peut pas être nul", fors->line);
-        }
+    for (const auto& tgt : r.targets) {
+        Value currentVal = evaluateExpression(tgt.targetExpr, currentEnv_);
+        std::string inputStr = requestInput("Saisir une valeur :");
+        Value converted = convertInput(inputStr, currentVal);
+        assignToLValue(tgt.targetExpr, converted, currentEnv_, r.line);
+    }
+}
 
-        int64_t start = startVal.asInt();
-        int64_t end = endVal.asInt();
-
-        if (step > 0) {
-            for (int64_t i = start; i <= end; i += step) {
-                checkIterationLimit(fors->line);
-                checkTimeout(fors->line);
-                env->set(fors->varName, Value(i), fors->line);
-                executeBlock(fors->body, env);
-                if (returnValue_.set) return;
-            }
-        } else {
-            for (int64_t i = start; i >= end; i += step) {
-                checkIterationLimit(fors->line);
-                checkTimeout(fors->line);
-                env->set(fors->varName, Value(i), fors->line);
-                executeBlock(fors->body, env);
-                if (returnValue_.set) return;
-            }
-        }
-    } else if (auto whiles = std::dynamic_pointer_cast<WhileStmt>(stmt)) {
-        while (evaluateExpression(whiles->condition, env).asBool()) {
-            checkIterationLimit(whiles->line);
-            checkTimeout(whiles->line);
-            executeBlock(whiles->body, env);
-            if (returnValue_.set) return;
-        }
-    } else if (auto reps = std::dynamic_pointer_cast<RepeatStmt>(stmt)) {
-        do {
-            checkIterationLimit(reps->line);
-            checkTimeout(reps->line);
-            executeBlock(reps->body, env);
-            if (returnValue_.set) return;
-        } while (!evaluateExpression(reps->condition, env).asBool());
-    } else if (auto calls = std::dynamic_pointer_cast<CallStmt>(stmt)) {
-        std::string n = normalize(calls->name);
-        if (n == "ouvrir" || n == "fermer" || n == "lire_ligne" || procedures_.find(n) != procedures_.end()) {
-            executeProcedure(n, calls->args, env, calls->line);
-        } else if (functions_.find(n) != functions_.end()) {
-            executeFunction(n, calls->args, env, calls->line);
-        } else if (n == "graine") {
-            evaluateCall(n, calls->args, env, calls->line);
-        } else {
-            throw AlgoError("Procédure '" + calls->name + "' non définie", calls->line);
-        }
-        } else if (auto sws = std::dynamic_pointer_cast<SwitchStmt>(stmt)) {
-        Value targetVal = evaluateExpression(sws->expr, env);
+void Interpreter::visit(IfStmt& ifs) {
+    if (evaluateExpression(ifs.condition, currentEnv_).asBool()) {
+        executeBlock(ifs.thenBlock, currentEnv_);
+    } else {
         bool matched = false;
-        const SwitchCase* defaultCase = nullptr;
-
-        for (const auto& sc : sws->cases) {
-            if (sc.isDefault) {
-                defaultCase = &sc;
-                continue;
+        for (const auto& eb : ifs.elseIfBlocks) {
+            if (evaluateExpression(eb.condition, currentEnv_).asBool()) {
+                executeBlock(eb.body, currentEnv_);
+                matched = true;
+                break;
             }
-            if (!sc.items.empty()) {
-                for (const auto& item : sc.items) {
-                    if (item.isRange()) {
-                        Value startVal = evaluateExpression(item.start, env);
-                        Value endVal = evaluateExpression(item.end, env);
-                        bool inRange = false;
-                        if (startVal.lessOrEqual(endVal)) {
-                            inRange = targetVal.greaterOrEqual(startVal) && targetVal.lessOrEqual(endVal);
-                        } else {
-                            inRange = targetVal.greaterOrEqual(endVal) && targetVal.lessOrEqual(startVal);
-                        }
-                        if (inRange) {
-                            matched = true;
-                            executeBlock(sc.body, env);
-                            break;
-                        }
+        }
+        if (!matched && !ifs.elseBlock.empty()) {
+            executeBlock(ifs.elseBlock, currentEnv_);
+        }
+    }
+}
+
+void Interpreter::visit(ForStmt& fors) {
+    Value startVal = evaluateExpression(fors.start, currentEnv_);
+    Value endVal = evaluateExpression(fors.end, currentEnv_);
+    Value stepVal = fors.step ? evaluateExpression(fors.step, currentEnv_) : Value((int64_t)1);
+
+    if (!startVal.isNumber() || !endVal.isNumber() || !stepVal.isNumber()) {
+        throw AlgoError("Les bornes de la boucle Pour doivent être des nombres", fors.line);
+    }
+    int64_t step = stepVal.asInt();
+    if (step == 0) {
+        throw AlgoError("Le pas de la boucle Pour ne peut pas être nul", fors.line);
+    }
+
+    int64_t start = startVal.asInt();
+    int64_t end = endVal.asInt();
+
+    if (step > 0) {
+        for (int64_t i = start; i <= end; i += step) {
+            checkIterationLimit(fors.line);
+            checkTimeout(fors.line);
+            currentEnv_->set(fors.varName, Value(i), fors.line);
+            executeBlock(fors.body, currentEnv_);
+            if (returnValue_.set) return;
+        }
+    } else {
+        for (int64_t i = start; i >= end; i += step) {
+            checkIterationLimit(fors.line);
+            checkTimeout(fors.line);
+            currentEnv_->set(fors.varName, Value(i), fors.line);
+            executeBlock(fors.body, currentEnv_);
+            if (returnValue_.set) return;
+        }
+    }
+}
+
+void Interpreter::visit(WhileStmt& whiles) {
+    while (evaluateExpression(whiles.condition, currentEnv_).asBool()) {
+        checkIterationLimit(whiles.line);
+        checkTimeout(whiles.line);
+        executeBlock(whiles.body, currentEnv_);
+        if (returnValue_.set) return;
+    }
+}
+
+void Interpreter::visit(RepeatStmt& reps) {
+    do {
+        checkIterationLimit(reps.line);
+        checkTimeout(reps.line);
+        executeBlock(reps.body, currentEnv_);
+        if (returnValue_.set) return;
+    } while (!evaluateExpression(reps.condition, currentEnv_).asBool());
+}
+
+void Interpreter::visit(CallStmt& calls) {
+    std::string n = normalize(calls.name);
+    if (n == "ouvrir" || n == "fermer" || n == "lire_ligne" || procedures_.find(n) != procedures_.end()) {
+        executeProcedure(n, calls.args, currentEnv_, calls.line);
+    } else if (functions_.find(n) != functions_.end()) {
+        executeFunction(n, calls.args, currentEnv_, calls.line);
+    } else if (n == "graine") {
+        evaluateCall(n, calls.args, currentEnv_, calls.line);
+    } else {
+        throw AlgoError("Procédure '" + calls.name + "' non définie", calls.line);
+    }
+}
+
+void Interpreter::visit(SwitchStmt& sws) {
+    Value targetVal = evaluateExpression(sws.expr, currentEnv_);
+    bool matched = false;
+    const SwitchCase* defaultCase = nullptr;
+
+    for (const auto& sc : sws.cases) {
+        if (sc.isDefault) {
+            defaultCase = &sc;
+            continue;
+        }
+        if (!sc.items.empty()) {
+            for (const auto& item : sc.items) {
+                if (item.isRange()) {
+                    Value startVal = evaluateExpression(item.start, currentEnv_);
+                    Value endVal = evaluateExpression(item.end, currentEnv_);
+                    bool inRange = false;
+                    if (startVal.lessOrEqual(endVal)) {
+                        inRange = targetVal.greaterOrEqual(startVal) && targetVal.lessOrEqual(endVal);
                     } else {
-                        Value caseVal = evaluateExpression(item.start, env);
-                        if (targetVal.equals(caseVal)) {
-                            matched = true;
-                            executeBlock(sc.body, env);
-                            break;
-                        }
+                        inRange = targetVal.greaterOrEqual(endVal) && targetVal.lessOrEqual(startVal);
                     }
-                }
-            } else {
-                for (const auto& valExpr : sc.values) {
-                    Value caseVal = evaluateExpression(valExpr, env);
+                    if (inRange) {
+                        matched = true;
+                        executeBlock(sc.body, currentEnv_);
+                        break;
+                    }
+                } else {
+                    Value caseVal = evaluateExpression(item.start, currentEnv_);
                     if (targetVal.equals(caseVal)) {
                         matched = true;
-                        executeBlock(sc.body, env);
+                        executeBlock(sc.body, currentEnv_);
                         break;
                     }
                 }
             }
-            if (matched) break;
+        } else {
+            for (const auto& valExpr : sc.values) {
+                Value caseVal = evaluateExpression(valExpr, currentEnv_);
+                if (targetVal.equals(caseVal)) {
+                    matched = true;
+                    executeBlock(sc.body, currentEnv_);
+                    break;
+                }
+            }
         }
+        if (matched) break;
+    }
 
-        if (!matched && defaultCase != nullptr) {
-            executeBlock(defaultCase->body, env);
-        }
-    } else if (auto rets = std::dynamic_pointer_cast<ReturnStmt>(stmt)) {
-        returnValue_ = {true, evaluateExpression(rets->value, env)};
+    if (!matched && defaultCase != nullptr) {
+        executeBlock(defaultCase->body, currentEnv_);
+    }
+}
+
+void Interpreter::visit(ReturnStmt& rets) {
+    returnValue_ = {true, evaluateExpression(rets.value, currentEnv_)};
+}
+
+void Interpreter::visit(LocalVarDeclStmt& lvd) {
+    for (const auto& name : lvd.names) {
+        Value defVal = getDefaultValue(lvd.typeSpec, name);
+        currentEnv_->define(name, defVal);
     }
 }
 
@@ -789,139 +831,172 @@ Value Interpreter::executeFunction(const std::string& name, const std::vector<st
 
 Value Interpreter::evaluateExpression(const std::shared_ptr<Expr>& expr, const std::shared_ptr<Environment>& env) {
     if (!expr) return Value();
+    auto prevEnv = currentEnv_;
+    currentEnv_ = env;
+    expr->accept(*this);
+    currentEnv_ = prevEnv;
+    return evalResult_;
+}
 
-    if (auto num = std::dynamic_pointer_cast<NumberExpr>(expr)) {
-        return Value(num->value);
-    }
-    if (auto r = std::dynamic_pointer_cast<RealExpr>(expr)) {
-        return Value(r->value);
-    }
-    if (auto s = std::dynamic_pointer_cast<StringExpr>(expr)) {
-        return Value(s->value);
-    }
-    if (auto b = std::dynamic_pointer_cast<BoolExpr>(expr)) {
-        return Value(b->value);
-    }
-    if (auto v = std::dynamic_pointer_cast<VariableExpr>(expr)) {
-        return env->get(v->name, v->line);
-    }
-    if (auto mem = std::dynamic_pointer_cast<MemberAccessExpr>(expr)) {
-        Value obj = evaluateExpression(mem->object, env);
-        if (!obj.isRecord()) {
-            throw AlgoError("Accès à un membre sur un objet qui n'est pas un enregistrement", mem->line);
-        }
-        auto it = obj.recVal.find(mem->member);
-        if (it != obj.recVal.end()) return it->second;
-        std::string normMem = normalize(mem->member);
-        for (const auto& kv : obj.recVal) {
-            if (normalize(kv.first) == normMem) return kv.second;
-        }
-        throw AlgoError("Champ '" + mem->member + "' introuvable", mem->line);
-    }
-    if (auto aa = std::dynamic_pointer_cast<ArrayAccessExpr>(expr)) {
-        Value arr;
-        if (aa->target) {
-            arr = evaluateExpression(aa->target, env);
-        } else {
-            arr = env->get(aa->name, aa->line);
-        }
-        int64_t idx = evaluateExpression(aa->index, env).asInt();
+void Interpreter::visit(NumberExpr& node) {
+    evalResult_ = Value(node.value);
+}
 
-        if (arr.isString() && !aa->index2) {
-            std::string s = arr.asString();
-            size_t len = utf8Length(s);
-            if (idx < 0 || (size_t)idx >= len) {
-                throw AlgoError("Indice " + std::to_string(idx) + " hors bornes", aa->line);
+void Interpreter::visit(RealExpr& node) {
+    evalResult_ = Value(node.value);
+}
+
+void Interpreter::visit(StringExpr& node) {
+    evalResult_ = Value(node.value);
+}
+
+void Interpreter::visit(BoolExpr& node) {
+    evalResult_ = Value(node.value);
+}
+
+void Interpreter::visit(VariableExpr& node) {
+    evalResult_ = currentEnv_->get(node.name, node.line);
+}
+
+void Interpreter::visit(ArrayAccessExpr& node) {
+    Value arr;
+    if (node.target) {
+        arr = evaluateExpression(node.target, currentEnv_);
+    } else {
+        arr = currentEnv_->get(node.name, node.line);
+    }
+    int64_t idx = evaluateExpression(node.index, currentEnv_).asInt();
+
+    if (arr.isString() && !node.index2) {
+        std::string s = arr.asString();
+        size_t len = utf8Length(s);
+        if (idx < 0 || (size_t)idx >= len) {
+            throw AlgoError("Indice " + std::to_string(idx) + " hors bornes", node.line);
+        }
+        evalResult_ = Value(utf8Substr(s, (size_t)idx, (size_t)(idx + 1)));
+        return;
+    }
+
+    if (!arr.isArray()) {
+        throw AlgoError((node.target ? "L'expression" : node.name) + " n'est pas un tableau ni une chaîne", node.line);
+    }
+    if (idx < 0 || (size_t)idx >= arr.arrVal.size()) {
+        throw AlgoError("Indice " + std::to_string(idx) + " hors bornes", node.line);
+    }
+
+    if (node.index2) {
+        Value row = arr.arrVal[idx];
+        int64_t idx2 = evaluateExpression(node.index2, currentEnv_).asInt();
+        if (row.isString()) {
+            size_t len = utf8Length(row.asString());
+            if (idx2 < 0 || (size_t)idx2 >= len) {
+                throw AlgoError("Indice colonne " + std::to_string(idx2) + " hors bornes", node.line);
             }
-            return Value(utf8Substr(s, (size_t)idx, (size_t)(idx + 1)));
+            evalResult_ = Value(utf8Substr(row.asString(), (size_t)idx2, (size_t)(idx2 + 1)));
+            return;
         }
-
-        if (!arr.isArray()) {
-            throw AlgoError((aa->target ? "L'expression" : aa->name) + " n'est pas un tableau ni une chaîne", aa->line);
+        if (!row.isArray()) {
+            throw AlgoError("Ligne " + std::to_string(idx) + " de " + (node.target ? "matrice" : node.name) + " n'est pas un tableau", node.line);
         }
-        if (idx < 0 || (size_t)idx >= arr.arrVal.size()) {
-            throw AlgoError("Indice " + std::to_string(idx) + " hors bornes", aa->line);
+        if (idx2 < 0 || (size_t)idx2 >= row.arrVal.size()) {
+            throw AlgoError("Indice colonne " + std::to_string(idx2) + " hors bornes", node.line);
         }
-
-        if (aa->index2) {
-            Value row = arr.arrVal[idx];
-            int64_t idx2 = evaluateExpression(aa->index2, env).asInt();
-            if (row.isString()) {
-                size_t len = utf8Length(row.asString());
-                if (idx2 < 0 || (size_t)idx2 >= len) {
-                    throw AlgoError("Indice colonne " + std::to_string(idx2) + " hors bornes", aa->line);
-                }
-                return Value(utf8Substr(row.asString(), (size_t)idx2, (size_t)(idx2 + 1)));
-            }
-            if (!row.isArray()) {
-                throw AlgoError("Ligne " + std::to_string(idx) + " de " + (aa->target ? "matrice" : aa->name) + " n'est pas un tableau", aa->line);
-            }
-            if (idx2 < 0 || (size_t)idx2 >= row.arrVal.size()) {
-                throw AlgoError("Indice colonne " + std::to_string(idx2) + " hors bornes", aa->line);
-            }
-            return row.arrVal[idx2];
-        }
-
-        return arr.arrVal[idx];
-    }
-    if (auto u = std::dynamic_pointer_cast<UnaryExpr>(expr)) {
-        Value operand = evaluateExpression(u->operand, env);
-        if (u->op == "-") {
-            if (operand.isInt()) return Value(-operand.asInt());
-            return Value(-operand.asReal());
-        }
-        if (u->op == "Non" || normalize(u->op) == "non") {
-            return Value(!operand.asBool());
-        }
-        throw AlgoError("Opérateur unaire inconnu: " + u->op, u->line);
-    }
-    if (auto bin = std::dynamic_pointer_cast<BinaryExpr>(expr)) {
-        // Short-circuit for logical operators
-        if (bin->op == "Et") {
-            Value left = evaluateExpression(bin->left, env);
-            if (!left.asBool()) return Value(false);
-            return Value(evaluateExpression(bin->right, env).asBool());
-        }
-        if (bin->op == "Ou") {
-            Value left = evaluateExpression(bin->left, env);
-            if (left.asBool()) return Value(true);
-            return Value(evaluateExpression(bin->right, env).asBool());
-        }
-
-        Value left = evaluateExpression(bin->left, env);
-        Value right = evaluateExpression(bin->right, env);
-
-        const std::string& op = bin->op;
-        if (op == "+") return left.add(right);
-        if (op == "-") return left.sub(right);
-        if (op == "*") return left.mul(right);
-        if (op == "/") return left.divReal(right);
-        if (op == "div") return left.divInt(right);
-        if (op == "mod" || op == "%") return left.mod(right);
-
-        if (op == "=") return Value(left.equals(right));
-        if (op == "≠" || op == "!=") return Value(left.notEquals(right));
-        if (op == "<") return Value(left.lessThan(right));
-        if (op == "<=" || op == "≤") return Value(left.lessOrEqual(right));
-        if (op == ">") return Value(left.greaterThan(right));
-        if (op == ">=" || op == "≥") return Value(left.greaterOrEqual(right));
-
-        if (op == "∈") return Value(right.contains(left));
-
-        throw AlgoError("Opérateur binaire inconnu: " + op, bin->line);
-    }
-    if (auto c = std::dynamic_pointer_cast<CallExpr>(expr)) {
-        return evaluateCall(c->name, c->args, env, c->line);
-    }
-    if (auto setLit = std::dynamic_pointer_cast<SetLiteralExpr>(expr)) {
-        std::vector<Value> arr;
-        for (const auto& elem : setLit->elements) {
-            arr.push_back(evaluateExpression(elem, env));
-        }
-        return Value(std::move(arr));
+        evalResult_ = row.arrVal[idx2];
+        return;
     }
 
-    throw AlgoError("Type d'expression non reconnu");
+    evalResult_ = arr.arrVal[idx];
+}
+
+void Interpreter::visit(MemberAccessExpr& node) {
+    Value obj = evaluateExpression(node.object, currentEnv_);
+    if (!obj.isRecord()) {
+        throw AlgoError("Accès à un membre sur un objet qui n'est pas un enregistrement", node.line);
+    }
+    auto it = obj.recVal.find(node.member);
+    if (it != obj.recVal.end()) {
+        evalResult_ = it->second;
+        return;
+    }
+    std::string normMem = normalize(node.member);
+    for (const auto& kv : obj.recVal) {
+        if (normalize(kv.first) == normMem) {
+            evalResult_ = kv.second;
+            return;
+        }
+    }
+    throw AlgoError("Champ '" + node.member + "' introuvable", node.line);
+}
+
+void Interpreter::visit(UnaryExpr& node) {
+    Value operand = evaluateExpression(node.operand, currentEnv_);
+    if (node.op == "-") {
+        if (operand.isInt()) evalResult_ = Value(-operand.asInt());
+        else evalResult_ = Value(-operand.asReal());
+        return;
+    }
+    if (node.op == "Non" || normalize(node.op) == "non") {
+        evalResult_ = Value(!operand.asBool());
+        return;
+    }
+    throw AlgoError("Opérateur unaire inconnu: " + node.op, node.line);
+}
+
+void Interpreter::visit(BinaryExpr& node) {
+    // Short-circuit for logical operators
+    if (node.op == "Et") {
+        Value left = evaluateExpression(node.left, currentEnv_);
+        if (!left.asBool()) {
+            evalResult_ = Value(false);
+            return;
+        }
+        evalResult_ = Value(evaluateExpression(node.right, currentEnv_).asBool());
+        return;
+    }
+    if (node.op == "Ou") {
+        Value left = evaluateExpression(node.left, currentEnv_);
+        if (left.asBool()) {
+            evalResult_ = Value(true);
+            return;
+        }
+        evalResult_ = Value(evaluateExpression(node.right, currentEnv_).asBool());
+        return;
+    }
+
+    Value left = evaluateExpression(node.left, currentEnv_);
+    Value right = evaluateExpression(node.right, currentEnv_);
+
+    const std::string& op = node.op;
+    if (op == "+") { evalResult_ = left.add(right); return; }
+    if (op == "-") { evalResult_ = left.sub(right); return; }
+    if (op == "*") { evalResult_ = left.mul(right); return; }
+    if (op == "/") { evalResult_ = left.divReal(right); return; }
+    if (op == "div") { evalResult_ = left.divInt(right); return; }
+    if (op == "mod" || op == "%") { evalResult_ = left.mod(right); return; }
+
+    if (op == "=") { evalResult_ = Value(left.equals(right)); return; }
+    if (op == "≠" || op == "!=") { evalResult_ = Value(left.notEquals(right)); return; }
+    if (op == "<") { evalResult_ = Value(left.lessThan(right)); return; }
+    if (op == "<=" || op == "≤") { evalResult_ = Value(left.lessOrEqual(right)); return; }
+    if (op == ">") { evalResult_ = Value(left.greaterThan(right)); return; }
+    if (op == ">=" || op == "≥") { evalResult_ = Value(left.greaterOrEqual(right)); return; }
+
+    if (op == "∈") { evalResult_ = Value(right.contains(left)); return; }
+
+    throw AlgoError("Opérateur binaire inconnu: " + op, node.line);
+}
+
+void Interpreter::visit(CallExpr& node) {
+    evalResult_ = evaluateCall(node.name, node.args, currentEnv_, node.line);
+}
+
+void Interpreter::visit(SetLiteralExpr& node) {
+    std::vector<Value> arr;
+    arr.reserve(node.elements.size());
+    for (const auto& elem : node.elements) {
+        arr.push_back(evaluateExpression(elem, currentEnv_));
+    }
+    evalResult_ = Value(std::move(arr));
 }
 
 Value Interpreter::evaluateCall(const std::string& name, const std::vector<std::shared_ptr<Expr>>& args,
