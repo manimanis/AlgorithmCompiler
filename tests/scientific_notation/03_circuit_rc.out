@@ -1,0 +1,21 @@
+Tension du générateur :
+Capacité du condensateur :
+Résistance du résistor :
+A l'instant t = 0 s, la tension vaut : 0 V
+A l'instant t = 0.0005 s, la tension vaut : 3.934693403 V
+A l'instant t = 0.001 s, la tension vaut : 6.321205588 V
+A l'instant t = 0.0015 s, la tension vaut : 7.768698399 V
+A l'instant t = 0.002 s, la tension vaut : 8.646647168 V
+A l'instant t = 0.0025 s, la tension vaut : 9.179150014 V
+t = 0 s - uc = 10 V - w = 5e-05 J
+t = 0.0005 s - uc = 6.065306597 V - w = 1.839397206e-05 J
+t = 0.001 s - uc = 3.678794412 V - w = 6.766764162e-06 J
+t = 0.0015 s - uc = 2.231301601 V - w = 2.489353418e-06 J
+t = 0.002 s - uc = 1.353352832 V - w = 9.157819444e-07 J
+t = 0.0025 s - uc = 0.8208499862 V - w = 3.3689735e-07 J
+t = 0.003 s - uc = 0.4978706837 V - w = 1.239376088e-07 J
+t = 0.0035 s - uc = 0.3019738342 V - w = 4.559409828e-08 J
+t = 0.004 s - uc = 0.1831563889 V - w = 1.67731314e-08 J
+t = 0.0045 s - uc = 0.1110899654 V - w = 6.170490204e-09 J
+t = 0.005 s - uc = 0.06737946999 V - w = 2.269996488e-09 J
+Durée totale de décharge = 0.0055 s

@@ -1,0 +1,4 @@
+Point fixe x1 =  0.7064
+Point fixe x2 =  1.0008
+Donner le nombre de trapèzes N (N >= 10) : 
+L'aire sous la courbe entre x1 et x2 est :  0.2624792863

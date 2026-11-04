@@ -1,0 +1,58 @@
+Donner le nombre de joueurs (entre 5 et 10) : 
+--- Saisie du joueur n° 1  ---
+Donner l'identifiant (10 car. : 1ère/dernière majuscules, 8 chiffres) : 
+Essai n° 1  (0 à 10 quilles) : 
+Essai n° 2  (0 à 10 quilles) : 
+Essai n° 3  (0 à 10 quilles) : 
+Essai n° 4  (0 à 10 quilles) : 
+Essai n° 5  (0 à 10 quilles) : 
+Essai n° 6  (0 à 10 quilles) : 
+Essai n° 7  (0 à 10 quilles) : 
+Essai n° 8  (0 à 10 quilles) : 
+--- Saisie du joueur n° 2  ---
+Donner l'identifiant (10 car. : 1ère/dernière majuscules, 8 chiffres) : 
+Essai n° 1  (0 à 10 quilles) : 
+Essai n° 2  (0 à 10 quilles) : 
+Essai n° 3  (0 à 10 quilles) : 
+Essai n° 4  (0 à 10 quilles) : 
+Essai n° 5  (0 à 10 quilles) : 
+Essai n° 6  (0 à 10 quilles) : 
+Essai n° 7  (0 à 10 quilles) : 
+Essai n° 8  (0 à 10 quilles) : 
+--- Saisie du joueur n° 3  ---
+Donner l'identifiant (10 car. : 1ère/dernière majuscules, 8 chiffres) : 
+Essai n° 1  (0 à 10 quilles) : 
+Essai n° 2  (0 à 10 quilles) : 
+Essai n° 3  (0 à 10 quilles) : 
+Essai n° 4  (0 à 10 quilles) : 
+Essai n° 5  (0 à 10 quilles) : 
+Essai n° 6  (0 à 10 quilles) : 
+Essai n° 7  (0 à 10 quilles) : 
+Essai n° 8  (0 à 10 quilles) : 
+--- Saisie du joueur n° 4  ---
+Donner l'identifiant (10 car. : 1ère/dernière majuscules, 8 chiffres) : 
+Essai n° 1  (0 à 10 quilles) : 
+Essai n° 2  (0 à 10 quilles) : 
+Essai n° 3  (0 à 10 quilles) : 
+Essai n° 4  (0 à 10 quilles) : 
+Essai n° 5  (0 à 10 quilles) : 
+Essai n° 6  (0 à 10 quilles) : 
+Essai n° 7  (0 à 10 quilles) : 
+Essai n° 8  (0 à 10 quilles) : 
+--- Saisie du joueur n° 5  ---
+Donner l'identifiant (10 car. : 1ère/dernière majuscules, 8 chiffres) : 
+Essai n° 1  (0 à 10 quilles) : 
+Essai n° 2  (0 à 10 quilles) : 
+Essai n° 3  (0 à 10 quilles) : 
+Essai n° 4  (0 à 10 quilles) : 
+Essai n° 5  (0 à 10 quilles) : 
+Essai n° 6  (0 à 10 quilles) : 
+Essai n° 7  (0 à 10 quilles) : 
+Essai n° 8  (0 à 10 quilles) : 
+===== CLASSEMENT DE LA COMPÉTITION =====
+Rang  1  : Joueur  C12345678D  | Efficacité :  10
+Rang  2  : Joueur  A12345678B  | Efficacité :  6.75
+Rang  3  : Joueur  G12345678H  | Efficacité :  4.5
+Rang  4  : Joueur  I12345678J  | Efficacité :  2
+Rang  5  : Joueur  E12345678F  | Efficacité :  0
+>> Meilleur joueur :  C12345678D  avec une moyenne de  10

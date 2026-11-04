@@ -1,0 +1,3 @@
+Algorithme 01_empty_program_execution
+Début
+Fin

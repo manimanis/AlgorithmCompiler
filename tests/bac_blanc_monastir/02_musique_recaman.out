@@ -1,0 +1,8 @@
+Donner le nombre de notes N (1 <= N <= 100) : 
+Séquence musicale ordonnée (de la plus grave à la plus aiguë) :
+Note :  Do  (Terme= 0 ) - Fréquence :  261.63  Hz
+Note :  Ré  (Terme= 1 ) - Fréquence :  293.6697457  Hz
+Note :  Ré  (Terme= 6 ) - Fréquence :  293.6697457  Hz
+Note :  Mi  (Terme= 2 ) - Fréquence :  329.6331443  Hz
+Note :  Mi  (Terme= 7 ) - Fréquence :  329.6331443  Hz
+Note :  Sol  (Terme= 3 ) - Fréquence :  392.0020805  Hz
