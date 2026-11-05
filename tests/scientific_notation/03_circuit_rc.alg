@@ -62,7 +62,7 @@ Début
   Ecrire("Durée totale de décharge =", t, "s")
 Fin
 
-TDO
+TDOL
 Objet : Type/Nature
 t, uc, w : réel
 Tension_Decharge, Energie : Fonction

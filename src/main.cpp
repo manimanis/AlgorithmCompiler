@@ -73,8 +73,8 @@ static void printHelp(const std::string& progPath) {
               << "                                  (vérification des types, portées, arités, etc.)\n"
               << "                                  sans exécuter l'algorithme.\n"
               << "    --vm                          Exécute l'algorithme via la Machine Virtuelle à Bytecode\n"
-              << "                                  haute performance.\n"
-              << "    --ast                         Exécute l'algorithme via l'Interpréteur d'AST (Patron Visiteur).\n"
+              << "                                  haute performance (mode par défaut).\n"
+              << "    --ast                         Force l'exécution via l'Interpréteur d'AST (Patron Visiteur).\n"
               << "    --compare                     Compare directement la vitesse d'exécution entre AST et VM.\n"
               << "    --time, --bench               Mesure et affiche le temps d'exécution précis en ms.\n"
               << "    --dump-bytecode               Affiche le désassemblage du bytecode généré sans exécuter.\n"
@@ -112,7 +112,7 @@ int main(int argc, char* argv[]) {
     bool toPython = false;
     std::string pyOutputPath;
     bool checkOnly = false;
-    bool useVM = false;
+    bool useVM = true;
     bool dumpBytecode = false;
     bool compareModes = false;
     bool showTime = false;
@@ -169,6 +169,7 @@ int main(int argc, char* argv[]) {
         auto tokens = lexer.tokenize();
 
         Parser parser(std::move(tokens));
+        parser.setCurrentFilePath(filePath);
         Program prog = parser.parse();
 
         SemanticAnalyzer analyzer(source);

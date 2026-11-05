@@ -55,7 +55,14 @@ private:
     bool isInsideSubroutine_ = false;
 
     std::unordered_map<std::string, bool> isProcedureMap_;
+    std::unordered_map<std::string, std::vector<bool>> paramByRefMap_;
     std::unordered_map<std::string, uint32_t> builtinIds_;
+    std::unordered_map<std::string, TypeSpec> typeMap_;
+    std::vector<VarDecl> varDecls_;
+    const std::vector<VarDecl>* currentLocalVars_ = nullptr;
+
+    bool isFileType(const TypeSpec& ts) const;
+    bool isFileVar(const std::string& varName) const;
 
     void emitByte(uint8_t byte);
     void emitOp(OpCode op);
@@ -71,6 +78,9 @@ private:
 
     int findLocal(const std::string& name) const;
     void addLocal(const std::string& name, bool byRef = false);
+
+    bool compileRefExpr(const std::shared_ptr<Expr>& expr);
+    void compileCallArgument(const std::shared_ptr<Expr>& arg, bool isByRef);
 
     void compileBlock(const std::vector<std::shared_ptr<Stmt>>& stmts);
     void compileExpr(const std::shared_ptr<Expr>& expr);

@@ -31,11 +31,19 @@ enum class OpCode : uint8_t {
     OP_GET_REF,             // [uint32 slot] -> dereference and push
     OP_SET_REF,             // [uint32 slot] -> peek top -> set through ref
     OP_POP_REF,             // [uint32 slot] -> pop top -> set through ref
+    OP_PUSH_REF_GLOBAL,     // [uint32 nameIdx] -> push Value::makeRef(&globals_[name])
+    OP_PUSH_REF_LOCAL,      // [uint32 slot] -> push Value::makeRef(&stack_[stackBase + slot])
+    OP_PUSH_REF_REF,        // [uint32 slot] -> push Value::makeRef(refSlots[slot].ptr)
+    OP_REF_ARRAY,           // [ref, idx] -> push Value::makeRef(&arr[idx])
+    OP_REF_ARRAY2D,         // [ref, r, c] -> push Value::makeRef(&mat[r][c])
+    OP_REF_MEMBER,          // [uint32 nameIdx] -> [ref] -> push Value::makeRef(&rec[field])
+    OP_SET_LVALUE,          // [ref, val] -> *ref = val
 
     // Arithmetic
     OP_ADD,
     OP_SUB,
     OP_MUL,
+    OP_POW,
     OP_DIV_REAL,
     OP_DIV_INT,
     OP_MOD,
@@ -80,6 +88,8 @@ enum class OpCode : uint8_t {
     OP_READ_ARRAY,          // [uint32 nameIdx] (reads index from stack)
     OP_READ_ARRAY2D,        // [uint32 nameIdx] (reads col, row from stack)
     OP_READ_RECORD,         // [uint32 nameIdx, uint32 fieldIdx]
+    OP_READ_FILE,           // [uint32 fileVarIdx] -> read value from file and push
+    OP_READ_LVALUE,         // pop ref from stack, read input into *ref
 
     // Subroutines
     OP_CALL,                // [uint32 nameIdx, uint32 argCount]
@@ -90,6 +100,44 @@ enum class OpCode : uint8_t {
 };
 
 const char* opCodeName(OpCode op);
+
+enum BuiltinId : uint32_t {
+    BI_RACINE = 1,
+    BI_CARRE,
+    BI_ABS,
+    BI_EXP,
+    BI_LN,
+    BI_LOG,
+    BI_ENT,
+    BI_ARRONDI,
+    BI_LONG,
+    BI_CHR,
+    BI_ORD,
+    BI_CONVCH,
+    BI_VALEUR,
+    BI_SOUS_CHAINE,
+    BI_POS,
+    BI_MAJUS,
+    BI_MINUS,
+    BI_EFFACER,
+    BI_ESTNUM,
+    BI_ALEA,
+    BI_GRAINE,
+    BI_OUVRIR,
+    BI_FERMER,
+    BI_LIRE_LIGNE,
+    BI_FIN_FICHIER,
+    BI_SIN,
+    BI_COS,
+    BI_TAN,
+    BI_ARCTAN,
+    BI_FRAC,
+    BI_PUISSANCE,
+    BI_INSERER,
+    BI_TAILLE_FICHIER,
+    BI_POSITION_FICHIER,
+    BI_ALLER_A
+};
 
 struct Chunk {
     std::vector<uint8_t> code;
@@ -134,6 +182,7 @@ struct BytecodeProgram {
     std::string name;
     Chunk mainChunk;
     std::vector<TypeDecl> typeDecls;
+    std::vector<ConstDecl> constDecls;
     std::vector<VarDecl> varDecls;
     std::unordered_map<std::string, BytecodeFunction> subroutines;
 };

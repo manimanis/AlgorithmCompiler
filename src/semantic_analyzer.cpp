@@ -89,7 +89,9 @@ std::vector<std::string> SemanticAnalyzer::getVisibleSymbolNames() const {
         "Racine", "Exp", "Ln", "Log", "Abs", "Ent", "Arrondi", "Carre",
         "Long", "Chr", "Ord", "ConvCh", "Valeur", "Sous_Chaine", "Pos",
         "Majus", "Minus", "Alea", "Graine", "Fin_fichier", "Lire", "Ecrire",
-        "EstNum", "Est_num", "Effacer"
+        "EstNum", "Est_num", "Effacer", "Sin", "Cos", "Tan", "Arctan", "Atan",
+        "Frac", "Puissance", "Inserer", "Taille_Fichier", "Taille", "Position_Fichier",
+        "Pointeur", "Aller_A", "Pointer"
     };
     for (const auto& b : builtins) {
         if (seen.insert(normalize(b)).second) {
@@ -205,6 +207,10 @@ std::vector<SemanticDiagnostic> SemanticAnalyzer::analyze(const Program& prog) {
     typeMap_.clear();
     procMap_.clear();
     funcMap_.clear();
+    assignedVars_.clear();
+    warnedUnassignedVars_.clear();
+    constNames_.clear();
+    enumValueToType_.clear();
 
     pushScope(); // Global scope
 
@@ -249,10 +255,24 @@ void SemanticAnalyzer::collectTypes(const Program& prog) {
     for (const auto& td : prog.typeDecls) {
         typeMap_[normalize(td.name)] = td;
         declareSymbol(td.name, "type", td.typeSpec, SymbolKind::Type, -1);
+        if (td.typeSpec.kind == TypeKind::Enum) {
+            for (const auto& ev : td.typeSpec.enumValues) {
+                declareSymbol(ev, td.name, td.typeSpec, SymbolKind::Constant, td.line);
+                constNames_.insert(normalize(ev));
+                enumValueToType_[normalize(ev)] = td.name;
+                assignedVars_.insert(normalize(ev));
+            }
+        }
     }
 }
 
 void SemanticAnalyzer::collectGlobalDeclarations(const Program& prog) {
+    for (const auto& cd : prog.constDecls) {
+        checkExpr(cd.valueExpr);
+        declareSymbol(cd.name, "constante", TypeSpec(), SymbolKind::Constant, cd.line);
+        constNames_.insert(normalize(cd.name));
+        assignedVars_.insert(normalize(cd.name));
+    }
     for (const auto& proc : prog.procedures) {
         procMap_[normalize(proc.name)] = proc;
         declareSymbol(proc.name, "procedure", TypeSpec(), SymbolKind::Procedure, proc.line);
@@ -272,9 +292,16 @@ void SemanticAnalyzer::collectGlobalDeclarations(const Program& prog) {
 
 void SemanticAnalyzer::checkProcedure(const ProcedureDecl& proc) {
     pushScope();
+    for (const auto& cd : proc.constDecls) {
+        checkExpr(cd.valueExpr);
+        declareSymbol(cd.name, "constante", TypeSpec(), SymbolKind::Constant, cd.line);
+        constNames_.insert(normalize(cd.name));
+        assignedVars_.insert(normalize(cd.name));
+    }
     for (const auto& p : proc.params) {
         TypeSpec ts;
         ts.name = p.paramType;
+        assignedVars_.insert(normalize(p.name));
         if (!declareSymbol(p.name, p.paramType, ts, SymbolKind::Variable, proc.line)) {
             reportError(proc.line > 0 ? proc.line : 1, 1, p.name,
                         "Le paramètre '" + p.name + "' est déclaré plus d'une fois dans l'en-tête de la procédure '" + proc.name + "'.");
@@ -310,9 +337,16 @@ void SemanticAnalyzer::checkFunction(const FunctionDecl& func) {
     currentFunctionReturnType_ = func.returnType;
     hasReturnInCurrentFunction_ = false;
 
+    for (const auto& cd : func.constDecls) {
+        checkExpr(cd.valueExpr);
+        declareSymbol(cd.name, "constante", TypeSpec(), SymbolKind::Constant, cd.line);
+        constNames_.insert(normalize(cd.name));
+        assignedVars_.insert(normalize(cd.name));
+    }
     for (const auto& p : func.params) {
         TypeSpec ts;
         ts.name = p.paramType;
+        assignedVars_.insert(normalize(p.name));
         if (!declareSymbol(p.name, p.paramType, ts, SymbolKind::Variable, func.line)) {
             reportError(func.line > 0 ? func.line : 1, 1, p.name,
                         "Le paramètre '" + p.name + "' est déclaré plus d'une fois dans l'en-tête de la fonction '" + func.name + "'.");
@@ -352,8 +386,21 @@ void SemanticAnalyzer::checkFunction(const FunctionDecl& func) {
 }
 
 void SemanticAnalyzer::checkBlock(const std::vector<std::shared_ptr<Stmt>>& stmts) {
+    bool foundReturn = false;
+    int deadCodeLine = -1;
     for (const auto& s : stmts) {
+        if (!s) continue;
+        if (foundReturn && deadCodeLine == -1) {
+            deadCodeLine = s->line;
+        }
         checkStmt(s);
+        if (std::dynamic_pointer_cast<ReturnStmt>(s)) {
+            foundReturn = true;
+        }
+    }
+    if (foundReturn && deadCodeLine != -1) {
+        reportWarning(deadCodeLine, -1, "Retourner",
+                      "Code mort détecté : instruction(s) inaccessible(s) après 'Retourner'.");
     }
 }
 
@@ -477,10 +524,96 @@ SemanticAnalyzer::ExprTypeInfo SemanticAnalyzer::resolveExprTypeInfo(const std::
     return info;
 }
 
+static void collectReadVars(const std::shared_ptr<Expr>& expr, std::set<std::string>& out) {
+    if (!expr) return;
+    if (auto v = std::dynamic_pointer_cast<VariableExpr>(expr)) {
+        out.insert(normalize(v->name));
+        return;
+    }
+    if (auto bin = std::dynamic_pointer_cast<BinaryExpr>(expr)) {
+        collectReadVars(bin->left, out);
+        collectReadVars(bin->right, out);
+        return;
+    }
+    if (auto un = std::dynamic_pointer_cast<UnaryExpr>(expr)) {
+        collectReadVars(un->operand, out);
+        return;
+    }
+    if (auto aa = std::dynamic_pointer_cast<ArrayAccessExpr>(expr)) {
+        if (!aa->name.empty()) out.insert(normalize(aa->name));
+        if (aa->target) collectReadVars(aa->target, out);
+        collectReadVars(aa->index, out);
+        if (aa->index2) collectReadVars(aa->index2, out);
+        return;
+    }
+    if (auto mem = std::dynamic_pointer_cast<MemberAccessExpr>(expr)) {
+        collectReadVars(mem->object, out);
+        return;
+    }
+    if (auto call = std::dynamic_pointer_cast<CallExpr>(expr)) {
+        for (const auto& a : call->args) collectReadVars(a, out);
+        return;
+    }
+    if (auto setLit = std::dynamic_pointer_cast<SetLiteralExpr>(expr)) {
+        for (const auto& e : setLit->elements) collectReadVars(e, out);
+        return;
+    }
+}
+
+static void collectModifiedVars(const std::vector<std::shared_ptr<Stmt>>& stmts, std::set<std::string>& out) {
+    for (const auto& stmt : stmts) {
+        if (!stmt) continue;
+        if (auto as = std::dynamic_pointer_cast<AssignStmt>(stmt)) {
+            out.insert(normalize(as->target));
+        } else if (auto aas = std::dynamic_pointer_cast<ArrayAssignStmt>(stmt)) {
+            if (!aas->target.empty()) out.insert(normalize(aas->target));
+            if (auto varExpr = std::dynamic_pointer_cast<VariableExpr>(aas->targetExpr)) {
+                out.insert(normalize(varExpr->name));
+            }
+        } else if (auto ma = std::dynamic_pointer_cast<MemberAssignStmt>(stmt)) {
+            if (auto varExpr = std::dynamic_pointer_cast<VariableExpr>(ma->target)) {
+                out.insert(normalize(varExpr->name));
+            }
+        } else if (auto rd = std::dynamic_pointer_cast<ReadStmt>(stmt)) {
+            for (const auto& tgt : rd->targets) {
+                if (!tgt.name.empty()) out.insert(normalize(tgt.name));
+                if (auto varExpr = std::dynamic_pointer_cast<VariableExpr>(tgt.targetExpr)) {
+                    out.insert(normalize(varExpr->name));
+                }
+            }
+        } else if (auto fors = std::dynamic_pointer_cast<ForStmt>(stmt)) {
+            out.insert(normalize(fors->varName));
+            collectModifiedVars(fors->body, out);
+        } else if (auto ifs = std::dynamic_pointer_cast<IfStmt>(stmt)) {
+            collectModifiedVars(ifs->thenBlock, out);
+            for (const auto& eb : ifs->elseIfBlocks) collectModifiedVars(eb.body, out);
+            collectModifiedVars(ifs->elseBlock, out);
+        } else if (auto wh = std::dynamic_pointer_cast<WhileStmt>(stmt)) {
+            collectModifiedVars(wh->body, out);
+        } else if (auto rep = std::dynamic_pointer_cast<RepeatStmt>(stmt)) {
+            collectModifiedVars(rep->body, out);
+        } else if (auto call = std::dynamic_pointer_cast<CallStmt>(stmt)) {
+            std::string n = normalize(call->name);
+            if (n == "lire" || n == "lire_ligne" || n == "inserer") {
+                for (const auto& a : call->args) {
+                    if (auto varExpr = std::dynamic_pointer_cast<VariableExpr>(a)) {
+                        out.insert(normalize(varExpr->name));
+                    }
+                }
+            }
+        }
+    }
+}
+
 void SemanticAnalyzer::checkStmt(const std::shared_ptr<Stmt>& stmt) {
     if (!stmt) return;
 
     if (auto as = std::dynamic_pointer_cast<AssignStmt>(stmt)) {
+        if (constNames_.find(normalize(as->target)) != constNames_.end()) {
+            reportError(as->line, -1, as->target,
+                        "Impossible de modifier la constante '" + as->target + "'.");
+            return;
+        }
         const Symbol* sym = findSymbol(as->target);
         std::string valType = checkExpr(as->value);
         if (!sym) {
@@ -492,6 +625,7 @@ void SemanticAnalyzer::checkStmt(const std::shared_ptr<Stmt>& stmt) {
                         "Affectation de type incompatible pour l'objet '" + as->target + "' : attendu '" +
                         sym->typeName + "', mais obtenu '" + valType + "'.");
         }
+        assignedVars_.insert(normalize(as->target));
         return;
     }
 
@@ -504,8 +638,15 @@ void SemanticAnalyzer::checkStmt(const std::shared_ptr<Stmt>& stmt) {
             }
         }
 
+        if (constNames_.find(normalize(arrName)) != constNames_.end()) {
+            reportError(aas->line, -1, arrName,
+                        "Impossible de modifier la constante '" + arrName + "'.");
+            return;
+        }
+
+        ExprTypeInfo arrInfo;
         if (aas->targetExpr && !std::dynamic_pointer_cast<VariableExpr>(aas->targetExpr)) {
-            ExprTypeInfo arrInfo = resolveExprTypeInfo(aas->targetExpr);
+            arrInfo = resolveExprTypeInfo(aas->targetExpr);
             checkExpr(aas->targetExpr);
             elemType = arrInfo.typeSpec.elemType;
             if (elemType.empty() && !arrInfo.typeName.empty()) {
@@ -526,7 +667,19 @@ void SemanticAnalyzer::checkStmt(const std::shared_ptr<Stmt>& stmt) {
                             "Le tableau '" + arrName + "' non défini dans le TDO/TDOL.", sugg);
                 return;
             }
+            arrInfo.typeName = sym->typeName;
+            arrInfo.typeSpec = sym->typeSpec;
             elemType = resolveElemType(sym, typeMap_);
+        }
+
+        if (arrInfo.typeSpec.rows > 0) {
+            if (auto num = std::dynamic_pointer_cast<NumberExpr>(aas->index)) {
+                if (num->value < 0 || num->value >= arrInfo.typeSpec.rows) {
+                    reportError(aas->line, -1, arrName,
+                                "Indice " + std::to_string(num->value) + " hors bornes pour le tableau '" +
+                                arrName + "' de taille " + std::to_string(arrInfo.typeSpec.rows) + ".");
+                }
+            }
         }
 
         std::string idxType = checkExpr(aas->index);
@@ -547,6 +700,7 @@ void SemanticAnalyzer::checkStmt(const std::shared_ptr<Stmt>& stmt) {
                         "Affectation de type incompatible dans le tableau '" + arrName + "' : attendu '" +
                         elemType + "', mais obtenu '" + valType + "'.");
         }
+        assignedVars_.insert(normalize(arrName));
         return;
     }
 
@@ -594,6 +748,9 @@ void SemanticAnalyzer::checkStmt(const std::shared_ptr<Stmt>& stmt) {
                         "Affectation de type incompatible pour le champ '" + ma->member + "' : attendu '" +
                         expectedFieldType + "', mais obtenu '" + valType + "'.");
         }
+        if (auto varExpr = std::dynamic_pointer_cast<VariableExpr>(ma->target)) {
+            assignedVars_.insert(normalize(varExpr->name));
+        }
         return;
     }
 
@@ -616,8 +773,15 @@ void SemanticAnalyzer::checkStmt(const std::shared_ptr<Stmt>& stmt) {
 
     if (auto call = std::dynamic_pointer_cast<CallStmt>(stmt)) {
         std::string n = normalize(call->name);
+        if (n == "inserer") {
+            reportError(call->line, -1, call->name,
+                        "'Inserer' est une fonction et ne peut pas être appelée en tant que procédure.");
+            return;
+        }
+
         if (n == "lire" || n == "ecrire" || n == "ecrire_nl" || n == "ouvrir" || n == "fermer" ||
-            n == "lire_ligne" || n == "graine" || n == "effacer") {
+            n == "lire_ligne" || n == "graine" || n == "effacer" ||
+            n == "aller_a" || n == "pointer") {
             for (const auto& a : call->args) checkExpr(a);
             return;
         }
@@ -646,6 +810,15 @@ void SemanticAnalyzer::checkStmt(const std::shared_ptr<Stmt>& stmt) {
                 reportError(call->line, -1, param.name,
                             "L'argument passé au paramètre par référence '@" + param.name +
                             "' de la procédure '" + call->name + "' doit être une variable modifiable (LValue).");
+            }
+            if (param.byRef) {
+                if (auto varExpr = std::dynamic_pointer_cast<VariableExpr>(arg)) {
+                    if (constNames_.find(normalize(varExpr->name)) != constNames_.end()) {
+                        reportError(call->line, -1, varExpr->name,
+                                    "Impossible de passer la constante '" + varExpr->name + "' à un paramètre modifiable.");
+                    }
+                    assignedVars_.insert(normalize(varExpr->name));
+                }
             }
             std::string argType = checkExpr(arg);
             if (!areTypesCompatible(param.paramType, argType)) {
@@ -686,6 +859,7 @@ void SemanticAnalyzer::checkStmt(const std::shared_ptr<Stmt>& stmt) {
             reportError(fors->line, -1, fors->varName,
                         "La variable de boucle '" + fors->varName + "' doit être un nombre de type numérique (obtenu '" + sym->typeName + "').");
         }
+        assignedVars_.insert(normalize(fors->varName));
 
         std::string startType = checkExpr(fors->start);
         std::string endType = checkExpr(fors->end);
@@ -711,6 +885,23 @@ void SemanticAnalyzer::checkStmt(const std::shared_ptr<Stmt>& stmt) {
             reportError(wh->line, -1, "Tant Que",
                         "La condition de la boucle 'Tant Que' doit être de type booléen (obtenu '" + condType + "').");
         }
+
+        std::set<std::string> condVars;
+        collectReadVars(wh->condition, condVars);
+        std::set<std::string> modVars;
+        collectModifiedVars(wh->body, modVars);
+        bool hasMod = false;
+        for (const auto& cv : condVars) {
+            if (modVars.find(cv) != modVars.end()) {
+                hasMod = true;
+                break;
+            }
+        }
+        if (!condVars.empty() && !hasMod) {
+            reportWarning(wh->line, -1, "Tant Que",
+                          "Boucle potentiellement infinie : aucune variable de la condition n'est modifiée dans le corps de la boucle.");
+        }
+
         checkBlock(wh->body);
         return;
     }
@@ -758,9 +949,21 @@ void SemanticAnalyzer::checkStmt(const std::shared_ptr<Stmt>& stmt) {
 
     if (auto rd = std::dynamic_pointer_cast<ReadStmt>(stmt)) {
         for (const auto& tgt : rd->targets) {
+            if (!tgt.name.empty()) {
+                if (constNames_.find(normalize(tgt.name)) != constNames_.end()) {
+                    reportError(rd->line, -1, tgt.name, "Impossible de modifier la constante '" + tgt.name + "'.");
+                }
+                assignedVars_.insert(normalize(tgt.name));
+            }
             if (tgt.targetExpr) {
                 if (!isLValue(tgt.targetExpr)) {
                     reportError(rd->line, -1, "Lire", "L'instruction 'Lire' attend une variable ou un emplacement modifiable.");
+                }
+                if (auto varExpr = std::dynamic_pointer_cast<VariableExpr>(tgt.targetExpr)) {
+                    if (constNames_.find(normalize(varExpr->name)) != constNames_.end()) {
+                        reportError(rd->line, -1, varExpr->name, "Impossible de modifier la constante '" + varExpr->name + "'.");
+                    }
+                    assignedVars_.insert(normalize(varExpr->name));
                 }
                 checkExpr(tgt.targetExpr);
             }
@@ -791,6 +994,15 @@ std::string SemanticAnalyzer::checkExpr(const std::shared_ptr<Expr>& expr) {
             reportError(v->line, -1, v->name,
                         "La variable '" + v->name + "' non définie (objet non déclaré dans le TDO/TDOL).", sugg);
             return "inconnu";
+        }
+        if (sym->kind == SymbolKind::Variable) {
+            std::string vNorm = normalize(v->name);
+            if (assignedVars_.find(vNorm) == assignedVars_.end() &&
+                warnedUnassignedVars_.find(vNorm) == warnedUnassignedVars_.end()) {
+                warnedUnassignedVars_.insert(vNorm);
+                reportWarning(v->line, -1, v->name,
+                              "La variable '" + v->name + "' est utilisée sans avoir été préalablement initialisée.");
+            }
         }
         return sym->typeName;
     }
@@ -832,8 +1044,9 @@ std::string SemanticAnalyzer::checkExpr(const std::shared_ptr<Expr>& expr) {
             }
         }
 
+        ExprTypeInfo arrInfo;
         if (aa->target && !std::dynamic_pointer_cast<VariableExpr>(aa->target)) {
-            ExprTypeInfo arrInfo = resolveExprTypeInfo(aa->target);
+            arrInfo = resolveExprTypeInfo(aa->target);
             checkExpr(aa->target);
             elemType = arrInfo.typeSpec.elemType;
             if (elemType.empty() && !arrInfo.typeName.empty()) {
@@ -854,7 +1067,19 @@ std::string SemanticAnalyzer::checkExpr(const std::shared_ptr<Expr>& expr) {
                             "Le tableau '" + arrName + "' non défini dans le TDO/TDOL.", sugg);
                 return "inconnu";
             }
+            arrInfo.typeName = sym->typeName;
+            arrInfo.typeSpec = sym->typeSpec;
             elemType = resolveElemType(sym, typeMap_);
+        }
+
+        if (arrInfo.typeSpec.rows > 0) {
+            if (auto num = std::dynamic_pointer_cast<NumberExpr>(aa->index)) {
+                if (num->value < 0 || num->value >= arrInfo.typeSpec.rows) {
+                    reportError(aa->line, -1, arrName,
+                                "Indice " + std::to_string(num->value) + " hors bornes pour le tableau '" +
+                                arrName + "' de taille " + std::to_string(arrInfo.typeSpec.rows) + ".");
+                }
+            }
         }
 
         std::string idxType = checkExpr(aa->index);
@@ -906,6 +1131,13 @@ std::string SemanticAnalyzer::checkExpr(const std::shared_ptr<Expr>& expr) {
         if (op == "∈" || op == "dans") {
             return "booleen";
         }
+        if (op == "^" || op == "**") {
+            if (!isNumericType(lt) || !isNumericType(rt)) {
+                reportError(bin->line, -1, bin->op, "L'opérateur '" + bin->op + "' attend des opérandes numériques.");
+            }
+            if (lt == "reel" || rt == "reel") return "reel";
+            return "entier";
+        }
         if (op == "+") {
             if (isStringType(lt) || isStringType(rt)) {
                 return "chaine";
@@ -932,6 +1164,40 @@ std::string SemanticAnalyzer::checkExpr(const std::shared_ptr<Expr>& expr) {
     if (auto call = std::dynamic_pointer_cast<CallExpr>(expr)) {
         std::string n = normalize(call->name);
 
+        auto itFunc = funcMap_.find(n);
+        if (itFunc != funcMap_.end()) {
+            const auto& func = itFunc->second;
+            if (call->args.size() != func.params.size()) {
+                reportError(call->line, -1, call->name,
+                            "Nombre d'arguments invalide pour l'appel de la fonction '" + call->name +
+                            "' : attendu " + std::to_string(func.params.size()) + ", mais obtenu " +
+                            std::to_string(call->args.size()) + ".");
+            }
+
+            for (size_t i = 0; i < func.params.size() && i < call->args.size(); i++) {
+                checkExpr(call->args[i]);
+            }
+
+            return func.returnType;
+        }
+
+        if (n == "sin" || n == "cos" || n == "tan" || n == "arctan" || n == "atan" || n == "frac") {
+            for (const auto& a : call->args) checkExpr(a);
+            return "reel";
+        }
+        if (n == "puissance") {
+            for (const auto& a : call->args) checkExpr(a);
+            return "reel";
+        }
+        if (n == "taille_fichier" || n == "taille" || n == "position_fichier" || n == "pointeur") {
+            for (const auto& a : call->args) checkExpr(a);
+            return "entier";
+        }
+        if (n == "inserer") {
+            for (const auto& a : call->args) checkExpr(a);
+            return "chaine";
+        }
+
         if (n == "racine" || n == "exp" || n == "ln" || n == "log") {
             for (const auto& a : call->args) checkExpr(a);
             return "reel";
@@ -953,27 +1219,10 @@ std::string SemanticAnalyzer::checkExpr(const std::shared_ptr<Expr>& expr) {
             return "booleen";
         }
 
-        auto itFunc = funcMap_.find(n);
-        if (itFunc == funcMap_.end()) {
-            std::string sugg = findClosestMatch(call->name, getVisibleSymbolNames());
-            reportError(call->line, -1, call->name,
-                        "La fonction '" + call->name + "' non définie dans le TDO/TDOG.", sugg);
-            return "inconnu";
-        }
-
-        const auto& func = itFunc->second;
-        if (call->args.size() != func.params.size()) {
-            reportError(call->line, -1, call->name,
-                        "Nombre d'arguments invalide pour l'appel de la fonction '" + call->name +
-                        "' : attendu " + std::to_string(func.params.size()) + ", mais obtenu " +
-                        std::to_string(call->args.size()) + ".");
-        }
-
-        for (size_t i = 0; i < func.params.size() && i < call->args.size(); i++) {
-            checkExpr(call->args[i]);
-        }
-
-        return func.returnType;
+        std::string sugg = findClosestMatch(call->name, getVisibleSymbolNames());
+        reportError(call->line, -1, call->name,
+                    "La fonction '" + call->name + "' non définie dans le TDO/TDOG.", sugg);
+        return "inconnu";
     }
 
     return "inconnu";
@@ -984,14 +1233,25 @@ bool SemanticAnalyzer::areTypesCompatible(const std::string& targetType, const s
     std::string s = normalize(srcType);
     if (t == "inconnu" || s == "inconnu") return true;
 
-    // Resolve aliases
+    if (enumValueToType_.count(s) && normalize(enumValueToType_[s]) == t) return true;
+    if (enumValueToType_.count(t) && normalize(enumValueToType_[t]) == s) return true;
+
+    // Resolve aliases and subranges
     auto itT = typeMap_.find(t);
-    if (itT != typeMap_.end() && itT->second.typeSpec.kind == TypeKind::Simple && !itT->second.typeSpec.name.empty()) {
-        t = normalize(itT->second.typeSpec.name);
+    if (itT != typeMap_.end()) {
+        if (itT->second.typeSpec.kind == TypeKind::Subrange) {
+            t = "entier";
+        } else if (itT->second.typeSpec.kind == TypeKind::Simple && !itT->second.typeSpec.name.empty()) {
+            t = normalize(itT->second.typeSpec.name);
+        }
     }
     auto itS = typeMap_.find(s);
-    if (itS != typeMap_.end() && itS->second.typeSpec.kind == TypeKind::Simple && !itS->second.typeSpec.name.empty()) {
-        s = normalize(itS->second.typeSpec.name);
+    if (itS != typeMap_.end()) {
+        if (itS->second.typeSpec.kind == TypeKind::Subrange) {
+            s = "entier";
+        } else if (itS->second.typeSpec.kind == TypeKind::Simple && !itS->second.typeSpec.name.empty()) {
+            s = normalize(itS->second.typeSpec.name);
+        }
     }
 
     if (t == s) return true;
@@ -1003,8 +1263,11 @@ bool SemanticAnalyzer::areTypesCompatible(const std::string& targetType, const s
 bool SemanticAnalyzer::isNumericType(const std::string& type) {
     std::string t = normalize(type);
     auto it = typeMap_.find(t);
-    if (it != typeMap_.end() && it->second.typeSpec.kind == TypeKind::Simple) {
-        t = normalize(it->second.typeSpec.name);
+    if (it != typeMap_.end()) {
+        if (it->second.typeSpec.kind == TypeKind::Subrange) return true;
+        if (it->second.typeSpec.kind == TypeKind::Simple) {
+            t = normalize(it->second.typeSpec.name);
+        }
     }
     return t == "entier" || t == "reel" || t == "inconnu";
 }

@@ -56,6 +56,11 @@ private:
     std::string currentFunctionReturnType_;
     bool hasReturnInCurrentFunction_ = false;
 
+    std::set<std::string> assignedVars_;
+    std::set<std::string> warnedUnassignedVars_;
+    std::set<std::string> constNames_;
+    std::map<std::string, std::string> enumValueToType_;
+
     void splitSourceLines();
     void pushScope();
     void popScope();

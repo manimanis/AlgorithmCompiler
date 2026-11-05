@@ -8,7 +8,7 @@ static const std::unordered_set<std::string> KEYWORDS = {
     "pas", "repeter", "jusqu'a", "tant", "que", "procedure",
     "fonction", "debut", "type", "var", "retourner", "et", "ou",
     "non", "vrai", "faux", "ecrire", "ecrire_nl", "lire", "lire_ligne",
-    "algorithme", "tdo", "tdnt", "tdol", "tdog", "objet",
+    "algorithme", "tdo", "tdnt", "tdol", "tdog", "objet", "const", "constante", "constantes",
     "finsi", "fin_si", "finpour", "fin_pour", "fintantque", "tantque", "selon", "finselon", "fin_selon", "cas", "autrement"
 };
 
@@ -216,6 +216,10 @@ Token Lexer::readOperatorOrDelimiter() {
     }
 
     // Two-character ASCII operators:
+    if (peek() == '*' && peek(1) == '*') {
+        advance(); advance();
+        return Token(TokenType::OPERATOR, "**", startLine, startCol);
+    }
     if (peek() == '<' && peek(1) == '-') {
         advance(); advance();
         return Token(TokenType::ARROW, "<-", startLine, startCol);
@@ -256,7 +260,7 @@ Token Lexer::readOperatorOrDelimiter() {
     }
 
     // Single character operators
-    if (c == '+' || c == '-' || c == '*' || c == '/' || c == '=' || c == '<' || c == '>' || c == '%') {
+    if (c == '+' || c == '-' || c == '*' || c == '/' || c == '^' || c == '=' || c == '<' || c == '>' || c == '%') {
         advance();
         return Token(TokenType::OPERATOR, std::string(1, c), startLine, startCol);
     }

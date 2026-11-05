@@ -7,7 +7,7 @@ namespace algo {
 
 // Système de versionnement sémantique (SemVer 2.0.0)
 constexpr int VERSION_MAJOR = 1;
-constexpr int VERSION_MINOR = 1;
+constexpr int VERSION_MINOR = 2;
 constexpr int VERSION_PATCH = 0;
 constexpr const char* VERSION_TAG = ""; // Ex: "-alpha", "-beta", "-rc1" ou "" pour release
 

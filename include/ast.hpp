@@ -348,7 +348,9 @@ enum class TypeKind {
     Array2D,
     Record,
     FileText,
-    FileData
+    FileData,
+    Enum,
+    Subrange
 };
 
 struct VarDecl;
@@ -360,6 +362,11 @@ struct TypeSpec {
     int cols = 0;
     std::string elemType;
     std::vector<std::shared_ptr<VarDecl>> fields;
+    std::vector<std::string> enumValues;
+    std::shared_ptr<Expr> subrangeMin;
+    std::shared_ptr<Expr> subrangeMax;
+    int64_t minInt = 0;
+    int64_t maxInt = 0;
 };
 
 struct LocalVarDeclStmt : public Stmt {
@@ -369,6 +376,13 @@ struct LocalVarDeclStmt : public Stmt {
     LocalVarDeclStmt(std::vector<std::string> n, std::string t, int line = -1)
         : Stmt(StmtKind::LocalVarDecl, line), names(std::move(n)), varType(std::move(t)) {}
     void accept(StmtVisitor& visitor) override { visitor.visit(*this); }
+};
+
+struct ConstDecl {
+    std::string name;
+    std::shared_ptr<Expr> valueExpr;
+    Value value;
+    int line = 1;
 };
 
 // Declarations
@@ -396,6 +410,7 @@ struct ParamDecl {
 struct ProcedureDecl {
     std::string name;
     std::vector<ParamDecl> params;
+    std::vector<ConstDecl> constDecls;
     std::vector<VarDecl> localVars;
     std::vector<std::shared_ptr<Stmt>> body;
     int line = -1;
@@ -405,6 +420,7 @@ struct FunctionDecl {
     std::string name;
     std::vector<ParamDecl> params;
     std::string returnType;
+    std::vector<ConstDecl> constDecls;
     std::vector<VarDecl> localVars;
     std::vector<std::shared_ptr<Stmt>> body;
     int line = -1;
@@ -413,6 +429,7 @@ struct FunctionDecl {
 struct Program {
     std::string name;
     std::vector<TypeDecl> typeDecls;
+    std::vector<ConstDecl> constDecls;
     std::vector<VarDecl> varDecls;
     std::vector<ProcedureDecl> procedures;
     std::vector<FunctionDecl> functions;

@@ -143,15 +143,27 @@ void Interpreter::run(const Program& prog) {
     procedures_.clear();
     functions_.clear();
     openFiles_.clear();
+    enumOrdinals_.clear();
 
     for (const auto& td : prog.typeDecls) {
         typeDefs_[normalize(td.name)] = td;
+        if (td.typeSpec.kind == TypeKind::Enum) {
+            for (size_t i = 0; i < td.typeSpec.enumValues.size(); i++) {
+                const std::string& ev = td.typeSpec.enumValues[i];
+                enumOrdinals_[normalize(ev)] = (int64_t)i;
+                globalEnv_->define(ev, Value(ev));
+            }
+        }
     }
     for (const auto& proc : prog.procedures) {
         procedures_[normalize(proc.name)] = proc;
     }
     for (const auto& func : prog.functions) {
         functions_[normalize(func.name)] = func;
+    }
+    for (const auto& cd : prog.constDecls) {
+        Value cVal = evaluateExpression(cd.valueExpr, globalEnv_);
+        globalEnv_->define(cd.name, cVal);
     }
     for (const auto& vd : prog.varDecls) {
         std::string vtNorm = normalize(vd.varType);
@@ -246,6 +258,15 @@ void Interpreter::assignToLValue(const std::shared_ptr<Expr>& lhs, const Value& 
 }
 
 void Interpreter::writeFileData(AlgoFile& f, const Value& val) {
+    std::streampos curPos = f.stream.tellp();
+    if (curPos != (std::streampos)-1) {
+        if (f.currentRecordIndex >= (int64_t)f.recordOffsets.size()) {
+            f.recordOffsets.push_back(curPos);
+        } else {
+            f.recordOffsets[f.currentRecordIndex] = curPos;
+        }
+        f.currentRecordIndex++;
+    }
     if (val.isInt()) {
         f.stream << "I " << val.asInt() << "\n";
     } else if (val.isReal()) {
@@ -437,6 +458,7 @@ void Interpreter::visit(ReadStmt& r) {
                     assignToLValue(r.targets[1].targetExpr, Value(content), currentEnv_, r.line);
                 } else {
                     Value val = readFileData(f);
+                    f.currentRecordIndex++;
                     assignToLValue(r.targets[1].targetExpr, val, currentEnv_, r.line);
                 }
                 return;
@@ -525,7 +547,7 @@ void Interpreter::visit(RepeatStmt& reps) {
 
 void Interpreter::visit(CallStmt& calls) {
     std::string n = normalize(calls.name);
-    if (n == "ouvrir" || n == "fermer" || n == "lire_ligne" || procedures_.find(n) != procedures_.end()) {
+    if (n == "ouvrir" || n == "fermer" || n == "lire_ligne" || n == "aller_a" || n == "pointer" || procedures_.find(n) != procedures_.end()) {
         executeProcedure(n, calls.args, currentEnv_, calls.line);
     } else if (functions_.find(n) != functions_.end()) {
         executeFunction(n, calls.args, currentEnv_, calls.line);
@@ -645,12 +667,54 @@ void Interpreter::executeProcedure(const std::string& name, const std::vector<st
             throw AlgoError("Impossible d'ouvrir le fichier '" + path + "'", line);
         }
         file->isOpen = true;
+        file->recordOffsets.clear();
+        file->currentRecordIndex = 0;
+        if (mode == "rb") {
+            while (true) {
+                file->stream >> std::ws;
+                std::streampos p = file->stream.tellg();
+                if (p == (std::streampos)-1 || file->stream.peek() == std::char_traits<char>::eof()) break;
+                file->recordOffsets.push_back(p);
+                readFileData(*file);
+                if (file->stream.fail()) break;
+            }
+            file->stream.clear();
+            file->stream.seekg(0, std::ios::beg);
+            file->currentRecordIndex = 0;
+        }
         openFiles_[fNorm] = file;
 
         Value fVal;
         fVal.type = ValueType::FileHandle;
         fVal.fileLogicalName = fVar;
         callerEnv->set(fVar, fVal);
+        return;
+    }
+
+    if (n == "aller_a" || n == "pointer") {
+        if (args.size() < 2) throw AlgoError("Aller_A attend 2 arguments: fichier, position", line);
+        std::string fVar;
+        if (auto varExpr = std::dynamic_pointer_cast<VariableExpr>(args[0])) fVar = varExpr->name;
+        else fVar = evaluateExpression(args[0], callerEnv).asString();
+        std::string fNorm = normalize(fVar);
+        auto it = openFiles_.find(fNorm);
+        if (it == openFiles_.end() || !it->second->isOpen) {
+            throw AlgoError("Fichier '" + fVar + "' non ouvert", line);
+        }
+        auto& f = *(it->second);
+        int64_t targetPos = evaluateExpression(args[1], callerEnv).asInt();
+        if (targetPos < 0 || targetPos > (int64_t)f.recordOffsets.size()) {
+            throw AlgoError("Position fichier hors bornes", line);
+        }
+        f.currentRecordIndex = targetPos;
+        f.stream.clear();
+        if (targetPos < (int64_t)f.recordOffsets.size()) {
+            f.stream.seekg(f.recordOffsets[targetPos]);
+            f.stream.seekp(f.recordOffsets[targetPos]);
+        } else {
+            f.stream.seekg(0, std::ios::end);
+            f.stream.seekp(0, std::ios::end);
+        }
         return;
     }
 
@@ -731,6 +795,12 @@ void Interpreter::executeProcedure(const std::string& name, const std::vector<st
         localEnv->define(pName, val);
     }
 
+    // Local constants
+    for (const auto& cd : proc.constDecls) {
+        Value val = evaluateExpression(cd.valueExpr, localEnv);
+        localEnv->define(cd.name, val);
+    }
+
     // Local variable declarations
     for (const auto& vd : proc.localVars) {
         std::string vtNorm = normalize(vd.varType);
@@ -793,6 +863,12 @@ Value Interpreter::executeFunction(const std::string& name, const std::vector<st
 
         Value val = (i < args.size()) ? evaluateExpression(args[i], callerEnv) : getDefaultValue(p.paramType);
         localEnv->define(pName, val);
+    }
+
+    // Local constants
+    for (const auto& cd : func.constDecls) {
+        Value val = evaluateExpression(cd.valueExpr, localEnv);
+        localEnv->define(cd.name, val);
     }
 
     // Local variable declarations
@@ -970,6 +1046,17 @@ void Interpreter::visit(BinaryExpr& node) {
     if (op == "+") { evalResult_ = left.add(right); return; }
     if (op == "-") { evalResult_ = left.sub(right); return; }
     if (op == "*") { evalResult_ = left.mul(right); return; }
+    if (op == "^" || op == "**") {
+        double base = left.asReal();
+        double exp = right.asReal();
+        double res = std::pow(base, exp);
+        if (left.isInt() && right.isInt() && right.asInt() >= 0) {
+            evalResult_ = Value((int64_t)std::round(res));
+        } else {
+            evalResult_ = Value(res);
+        }
+        return;
+    }
     if (op == "/") { evalResult_ = left.divReal(right); return; }
     if (op == "div") { evalResult_ = left.divInt(right); return; }
     if (op == "mod" || op == "%") { evalResult_ = left.mod(right); return; }
@@ -1003,6 +1090,10 @@ Value Interpreter::evaluateCall(const std::string& name, const std::vector<std::
                                 const std::shared_ptr<Environment>& env, int line) {
     std::string n = normalize(name);
 
+    if (functions_.find(n) != functions_.end()) {
+        return executeFunction(n, args, env, line);
+    }
+
     if (n == "fin_fichier" || n == "finfichier") {
         if (args.empty()) throw AlgoError("Fin_fichier attend 1 argument: fichier", line);
         std::string fVar;
@@ -1034,8 +1125,76 @@ Value Interpreter::evaluateCall(const std::string& name, const std::vector<std::
     }
     if (n == "ord") {
         if (args.empty()) throw AlgoError("ord attend 1 argument", line);
-        std::string s = evaluateExpression(args[0], env).asString();
+        Value v = evaluateExpression(args[0], env);
+        if (v.isInt()) return v;
+        std::string s = v.asString();
+        auto itEnum = enumOrdinals_.find(normalize(s));
+        if (itEnum != enumOrdinals_.end()) {
+            return Value(itEnum->second);
+        }
         return Value((int64_t)(s.empty() ? 0 : (unsigned char)s[0]));
+    }
+    if (n == "sin") {
+        if (args.empty()) throw AlgoError("sin attend 1 argument", line);
+        return Value(std::sin(evaluateExpression(args[0], env).asReal()));
+    }
+    if (n == "cos") {
+        if (args.empty()) throw AlgoError("cos attend 1 argument", line);
+        return Value(std::cos(evaluateExpression(args[0], env).asReal()));
+    }
+    if (n == "tan") {
+        if (args.empty()) throw AlgoError("tan attend 1 argument", line);
+        return Value(std::tan(evaluateExpression(args[0], env).asReal()));
+    }
+    if (n == "arctan" || n == "atan") {
+        if (args.empty()) throw AlgoError("arctan attend 1 argument", line);
+        return Value(std::atan(evaluateExpression(args[0], env).asReal()));
+    }
+    if (n == "frac") {
+        if (args.empty()) throw AlgoError("frac attend 1 argument", line);
+        double val = evaluateExpression(args[0], env).asReal();
+        double intpart;
+        return Value(std::modf(val, &intpart));
+    }
+    if (n == "puissance") {
+        if (args.size() < 2) throw AlgoError("puissance attend 2 arguments", line);
+        Value b = evaluateExpression(args[0], env);
+        Value e = evaluateExpression(args[1], env);
+        double res = std::pow(b.asReal(), e.asReal());
+        if (b.isInt() && e.isInt() && e.asInt() >= 0) {
+            return Value((int64_t)std::round(res));
+        }
+        return Value(res);
+    }
+    if (n == "inserer") {
+        if (args.size() < 3) throw AlgoError("inserer attend 3 arguments", line);
+        std::string ch1 = evaluateExpression(args[0], env).asString();
+        std::string ch2 = evaluateExpression(args[1], env).asString();
+        int64_t pos = evaluateExpression(args[2], env).asInt();
+        size_t len = utf8Length(ch2);
+        if (pos < 0) pos = 0;
+        if (pos > (int64_t)len) pos = len;
+        std::string prefix = utf8Substr(ch2, 0, (size_t)pos);
+        std::string suffix = utf8Substr(ch2, (size_t)pos, len);
+        return Value(prefix + ch1 + suffix);
+    }
+    if (n == "taille_fichier" || n == "taille") {
+        if (args.empty()) throw AlgoError("taille_fichier attend 1 argument", line);
+        std::string fVar;
+        if (auto varExpr = std::dynamic_pointer_cast<VariableExpr>(args[0])) fVar = varExpr->name;
+        else fVar = evaluateExpression(args[0], env).asString();
+        auto it = openFiles_.find(normalize(fVar));
+        if (it == openFiles_.end() || !it->second->isOpen) return Value((int64_t)0);
+        return Value((int64_t)it->second->recordOffsets.size());
+    }
+    if (n == "position_fichier" || n == "pointeur") {
+        if (args.empty()) throw AlgoError("position_fichier attend 1 argument", line);
+        std::string fVar;
+        if (auto varExpr = std::dynamic_pointer_cast<VariableExpr>(args[0])) fVar = varExpr->name;
+        else fVar = evaluateExpression(args[0], env).asString();
+        auto it = openFiles_.find(normalize(fVar));
+        if (it == openFiles_.end() || !it->second->isOpen) return Value((int64_t)0);
+        return Value(it->second->currentRecordIndex);
     }
     if (n == "long") {
         if (args.empty()) throw AlgoError("long attend 1 argument", line);

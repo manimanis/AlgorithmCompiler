@@ -1,0 +1,5 @@
+c = Rouge
+Ord(Rouge) = 0
+Ord(Vert) = 1
+Ord(Bleu) = 2
+Couleur est bien Bleu

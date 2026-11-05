@@ -20,6 +20,8 @@ struct AlgoFile {
     std::string elemType;
     std::fstream stream;
     bool isOpen = false;
+    std::vector<std::streampos> recordOffsets;
+    int64_t currentRecordIndex = 0;
 };
 
 // Mulberry32 32-bit PRNG
@@ -99,6 +101,7 @@ private:
     InterpreterOptions options_;
     std::shared_ptr<Environment> globalEnv_;
     std::unordered_map<std::string, TypeDecl> typeDefs_;
+    std::unordered_map<std::string, int64_t> enumOrdinals_;
     std::unordered_map<std::string, ProcedureDecl> procedures_;
     std::unordered_map<std::string, FunctionDecl> functions_;
     std::map<std::string, std::shared_ptr<AlgoFile>> openFiles_;

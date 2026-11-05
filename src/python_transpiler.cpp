@@ -56,6 +56,7 @@ void PythonTranspiler::scanExpr(const std::shared_ptr<Expr>& expr) {
         else if (n == "cos") mathImports_.insert("cos");
         else if (n == "sin") mathImports_.insert("sin");
         else if (n == "tan") mathImports_.insert("tan");
+        else if (n == "arctan" || n == "atan") mathImports_.insert("atan");
         else if (n == "alea" || n == "alea") randomImports_.insert("randint");
         else if (n == "graine") randomImports_.insert("seed");
         else if (n == "fin_fichier" || n == "finfichier") osImports_.insert("fstat");
@@ -870,6 +871,7 @@ std::string PythonTranspiler::transpileExpr(const std::shared_ptr<Expr>& expr) {
         else if (op == "≠" || op == "!=") pyOp = "!=";
         else if (op == "≤") pyOp = "<=";
         else if (op == "≥") pyOp = ">=";
+        else if (op == "^" || op == "**") pyOp = "**";
         else if (op == "∈") {
             return "(" + transpileExpr(bin->left) + " in " + transpileExpr(bin->right) + ")";
         } else {
@@ -950,6 +952,30 @@ std::string PythonTranspiler::transpileExpr(const std::shared_ptr<Expr>& expr) {
         if (n == "fin_fichier") {
             std::string fVar = transpileExpr(call->args[0]);
             return "(" + fVar + ".tell() >= fstat(" + fVar + ".fileno()).st_size)";
+        }
+        if (n == "sin") {
+            return "sin(" + transpileExpr(call->args[0]) + ")";
+        }
+        if (n == "cos") {
+            return "cos(" + transpileExpr(call->args[0]) + ")";
+        }
+        if (n == "tan") {
+            return "tan(" + transpileExpr(call->args[0]) + ")";
+        }
+        if (n == "arctan" || n == "atan") {
+            return "atan(" + transpileExpr(call->args[0]) + ")";
+        }
+        if (n == "frac") {
+            return "((" + transpileExpr(call->args[0]) + ") % 1)";
+        }
+        if (n == "puissance") {
+            return "((" + transpileExpr(call->args[0]) + ") ** (" + transpileExpr(call->args[1]) + "))";
+        }
+        if (n == "inserer") {
+            std::string c1 = transpileExpr(call->args[0]);
+            std::string c2 = transpileExpr(call->args[1]);
+            std::string p = transpileExpr(call->args[2]);
+            return "(" + c2 + "[:" + p + "] + " + c1 + " + " + c2 + "[" + p + ":])";
         }
 
         std::string s = pySafeName(call->name) + "(";

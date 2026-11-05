@@ -460,8 +460,8 @@ Enregistrer le code Python directement dans un fichier :
 - `-h, --help` : Affiche l'aide détaillée et les exemples d'utilisation.
 - `-v, --version` : Affiche le numéro de version du compilateur.
 - `--check` : Effectue uniquement l'analyse syntaxique et la vérification sémantique statique sans exécuter le code.
-- `--vm` : Exécute l'algorithme via la Machine Virtuelle à Bytecode (exécution linéaire ultra-rapide).
-- `--ast` : Exécute l'algorithme via l'Interpréteur d'AST optimisé (Patron Visiteur sans RTTI).
+- `--vm` : Exécute l'algorithme via la Machine Virtuelle à Bytecode (mode activé par défaut, exécution linéaire ultra-rapide).
+- `--ast` : Force l'exécution via l'Interpréteur d'AST classique (Patron Visiteur sans RTTI).
 - `--dump-bytecode` : Compile et affiche le désassemblage complet du bytecode généré sans exécuter.
 - `--to-python, --py [out.py]` : Transpile vers du code Python 3 (vers la sortie standard ou un fichier).
 - `--max-iter <N>` : Fixe la limite maximale d'itérations de boucle (défaut : 1 000 000).

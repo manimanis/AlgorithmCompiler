@@ -18,9 +18,17 @@ const char* opCodeName(OpCode op) {
         case OpCode::OP_GET_REF: return "OP_GET_REF";
         case OpCode::OP_SET_REF: return "OP_SET_REF";
         case OpCode::OP_POP_REF: return "OP_POP_REF";
+        case OpCode::OP_PUSH_REF_GLOBAL: return "OP_PUSH_REF_GLOBAL";
+        case OpCode::OP_PUSH_REF_LOCAL: return "OP_PUSH_REF_LOCAL";
+        case OpCode::OP_PUSH_REF_REF: return "OP_PUSH_REF_REF";
+        case OpCode::OP_REF_ARRAY: return "OP_REF_ARRAY";
+        case OpCode::OP_REF_ARRAY2D: return "OP_REF_ARRAY2D";
+        case OpCode::OP_REF_MEMBER: return "OP_REF_MEMBER";
+        case OpCode::OP_SET_LVALUE: return "OP_SET_LVALUE";
         case OpCode::OP_ADD: return "OP_ADD";
         case OpCode::OP_SUB: return "OP_SUB";
         case OpCode::OP_MUL: return "OP_MUL";
+        case OpCode::OP_POW: return "OP_POW";
         case OpCode::OP_DIV_REAL: return "OP_DIV_REAL";
         case OpCode::OP_DIV_INT: return "OP_DIV_INT";
         case OpCode::OP_MOD: return "OP_MOD";
@@ -55,6 +63,8 @@ const char* opCodeName(OpCode op) {
         case OpCode::OP_READ_ARRAY: return "OP_READ_ARRAY";
         case OpCode::OP_READ_ARRAY2D: return "OP_READ_ARRAY2D";
         case OpCode::OP_READ_RECORD: return "OP_READ_RECORD";
+        case OpCode::OP_READ_FILE: return "OP_READ_FILE";
+        case OpCode::OP_READ_LVALUE: return "OP_READ_LVALUE";
         case OpCode::OP_CALL: return "OP_CALL";
         case OpCode::OP_CALL_BUILTIN: return "OP_CALL_BUILTIN";
         case OpCode::OP_RETURN: return "OP_RETURN";
@@ -163,6 +173,8 @@ size_t Chunk::disassembleInstruction(size_t offset) const {
         case OpCode::OP_GET_GLOBAL:
         case OpCode::OP_SET_GLOBAL:
         case OpCode::OP_POP_GLOBAL:
+        case OpCode::OP_PUSH_REF_GLOBAL:
+        case OpCode::OP_REF_MEMBER:
         case OpCode::OP_READ_VAR:
         case OpCode::OP_READ_ARRAY:
         case OpCode::OP_READ_ARRAY2D: {
@@ -178,6 +190,8 @@ size_t Chunk::disassembleInstruction(size_t offset) const {
         case OpCode::OP_GET_REF:
         case OpCode::OP_SET_REF:
         case OpCode::OP_POP_REF:
+        case OpCode::OP_PUSH_REF_LOCAL:
+        case OpCode::OP_PUSH_REF_REF:
         case OpCode::OP_READ_LOCAL:
         case OpCode::OP_READ_REF: {
             size_t tempIp = nextOffset;

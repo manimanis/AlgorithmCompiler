@@ -111,7 +111,7 @@ for (const tf of testFiles) {
   }
 
   // 5. Run original with algo.exe
-  const algoRes = spawnSync(algo, [tf], { encoding: 'utf8' });
+  const algoRes = spawnSync(algo, ['--ast', tf], { encoding: 'utf8' });
   if (algoRes.status !== 0) {
     console.log('FAIL (algo.exe error):', algoRes.stderr);
     continue;

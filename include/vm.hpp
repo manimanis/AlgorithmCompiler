@@ -35,7 +35,7 @@ public:
 
     void run(const BytecodeProgram& prog);
 
-    Value getDefaultValue(const std::string& typeName) const;
+    Value getDefaultValue(const std::string& typeName, const std::string& varName = "") const;
     Value getDefaultValue(const TypeSpec& ts, const std::string& varName = "") const;
 
 private:

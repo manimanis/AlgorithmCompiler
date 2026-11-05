@@ -1,4 +1,6 @@
 #include "../include/parser.hpp"
+#include <filesystem>
+#include <fstream>
 
 namespace algo {
 
@@ -72,6 +74,7 @@ void Parser::consumeSemicolons() {
 Program Parser::parse() {
     Program prog;
     prog.arena = arena_;
+    bool hasTDO = false;
     while (peek().type != TokenType::END_OF_FILE) {
         if (peek().type == TokenType::COMMENT) {
             next();
@@ -90,6 +93,12 @@ Program Parser::parse() {
             continue;
         }
 
+        // Importer / Import
+        if (norm == "importer" || norm == "import") {
+            parseImport(prog);
+            continue;
+        }
+
         // TDNT (Tableau de Déclaration des Nouveaux Types)
         if (norm == "tdnt") {
             parseTDNT(prog);
@@ -98,7 +107,23 @@ Program Parser::parse() {
 
         // TDO / TDOG (Tableau des Objets Globaux)
         if (norm == "tdo" || norm == "tdog") {
+            if (hasTDO) {
+                error("Un algorithme ne peut contenir qu'un seul tableau de déclaration des objets (TDO)");
+            }
+            hasTDO = true;
             parseTDO(prog);
+            continue;
+        }
+
+        // TDOL (Tableau des Objets Locaux) at top-level
+        if (norm == "tdol") {
+            parseTDOL(prog.varDecls, prog.constDecls);
+            continue;
+        }
+
+        // Const / Constante / Constantes
+        if (norm == "const" || norm == "constante" || norm == "constantes") {
+            parseConstSection(prog.constDecls);
             continue;
         }
 
@@ -153,9 +178,139 @@ Program Parser::parse() {
     return prog;
 }
 
+void Parser::parseImport(Program& prog) {
+    Token impTok = next(); // consume importer / import
+    int line = impTok.line;
+
+    std::vector<std::string> requestedSymbols;
+    std::string filePathStr;
+
+    if (peek().type == TokenType::STRING) {
+        filePathStr = next().value;
+        if (match(TokenType::DELIMITER, "(")) {
+            do {
+                Token id = expect(TokenType::IDENTIFIER);
+                requestedSymbols.push_back(id.value);
+            } while (match(TokenType::DELIMITER, ","));
+            expect(TokenType::DELIMITER, ")");
+        }
+    } else {
+        do {
+            Token id = expect(TokenType::IDENTIFIER);
+            requestedSymbols.push_back(id.value);
+        } while (match(TokenType::DELIMITER, ","));
+
+        std::string kw = normalize(peek().value);
+        if (kw == "depuis" || kw == "de" || kw == "from") {
+            next();
+        }
+        Token fileTok = expect(TokenType::STRING);
+        filePathStr = fileTok.value;
+    }
+    consumeSemicolons();
+
+    std::filesystem::path targetPath(std::filesystem::u8path(filePathStr));
+    if (targetPath.is_relative() && !currentFilePath_.empty()) {
+        std::filesystem::path curDir = std::filesystem::u8path(currentFilePath_).parent_path();
+        if (!curDir.empty()) {
+            targetPath = curDir / targetPath;
+        }
+    }
+
+    std::error_code ec;
+    std::filesystem::path canonicalPath = std::filesystem::weakly_canonical(targetPath, ec);
+    std::string canStr = canonicalPath.string();
+
+    if (importedFiles_.count(canStr)) {
+        return;
+    }
+    importedFiles_.insert(canStr);
+
+    if (!std::filesystem::exists(canonicalPath)) {
+        throw AlgoError("Fichier importé introuvable : '" + filePathStr + "'", line);
+    }
+
+    std::ifstream in(canonicalPath, std::ios::binary);
+    if (!in.is_open()) {
+        throw AlgoError("Impossible d'ouvrir le fichier importé : '" + filePathStr + "'", line);
+    }
+    std::string content((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    in.close();
+
+    Lexer subLexer(content);
+    auto subTokens = subLexer.tokenize();
+    Parser subParser(std::move(subTokens), arena_);
+    subParser.setCurrentFilePath(canonicalPath.string());
+    subParser.setImportedFiles(importedFiles_);
+    Program importedProg = subParser.parse();
+
+    auto shouldImport = [&requestedSymbols](const std::string& name) -> bool {
+        if (requestedSymbols.empty()) return true;
+        for (const auto& s : requestedSymbols) {
+            if (normalize(s) == normalize(name)) return true;
+        }
+        return false;
+    };
+
+    for (auto& proc : importedProg.procedures) {
+        if (shouldImport(proc.name)) {
+            prog.procedures.push_back(std::move(proc));
+        }
+    }
+    for (auto& func : importedProg.functions) {
+        if (shouldImport(func.name)) {
+            prog.functions.push_back(std::move(func));
+        }
+    }
+    for (auto& td : importedProg.typeDecls) {
+        if (shouldImport(td.name)) {
+            prog.typeDecls.push_back(std::move(td));
+        }
+    }
+    for (auto& cd : importedProg.constDecls) {
+        if (shouldImport(cd.name)) {
+            prog.constDecls.push_back(std::move(cd));
+        }
+    }
+}
+
 TypeSpec Parser::parseTypeSpec() {
     TypeSpec ts;
     std::string n = normalize(peek().value);
+
+    // Enum: (Val1, Val2, ...)
+    if (match(TokenType::DELIMITER, "(")) {
+        ts.kind = TypeKind::Enum;
+        do {
+            Token id = expect(TokenType::IDENTIFIER);
+            ts.enumValues.push_back(id.value);
+        } while (match(TokenType::DELIMITER, ","));
+        expect(TokenType::DELIMITER, ")");
+        return ts;
+    }
+
+    // Subrange: e.g. 0 .. 20 (must not be inside tableau [...])
+    bool isSubrange = false;
+    if (n != "tableau" && n != "matrice" && n != "enregistrement" && n != "fichier") {
+        int bracketDepth = 0;
+        for (size_t i = 0; pos_ + i < tokens_.size(); ++i) {
+            if (tokens_[pos_ + i].line != peek().line) break;
+            if (tokens_[pos_ + i].value == ";") break;
+            if (tokens_[pos_ + i].value == "[") bracketDepth++;
+            else if (tokens_[pos_ + i].value == "]") bracketDepth--;
+            else if (bracketDepth == 0 && tokens_[pos_ + i].type == TokenType::DELIMITER && tokens_[pos_ + i].value == "..") {
+                isSubrange = true;
+                break;
+            }
+        }
+    }
+    if (isSubrange) {
+        ts.kind = TypeKind::Subrange;
+        ts.subrangeMin = parseAddition();
+        expect(TokenType::DELIMITER, "..");
+        ts.subrangeMax = parseAddition();
+        return ts;
+    }
 
     if (peek().type == TokenType::KEYWORD && (n == "fonction" || n == "procedure")) {
         next();
@@ -385,6 +540,10 @@ std::vector<VarDecl> Parser::parseVarDeclarations(bool hasVarKeyword) {
     // Continuation lines: identifier followed by ',' or ':'
     while (peek().type == TokenType::IDENTIFIER &&
            (peek(1).value == ":" || peek(1).value == ",")) {
+        // Check if it's a constant declaration in TDO/TDOL
+        if (peek(1).value == ":" && (normalize(peek(2).value) == "constante" || normalize(peek(2).value) == "const" || normalize(peek(2).value) == "cte")) {
+            break;
+        }
         // Make sure it's not a statement inside Début or another section
         std::string n = normalize(peek().value);
         if (n == "debut" || n == "fin" || n == "procedure" || n == "fonction" ||
@@ -408,7 +567,10 @@ ProcedureDecl Parser::parseProcedureDeclaration() {
     proc.params = std::move(params);
     proc.line = nameTok.line;
 
-    // Optional local vars before Début
+    // Optional local constants and vars before Début
+    if (normalize(peek().value) == "const" || normalize(peek().value) == "constante" || normalize(peek().value) == "constantes") {
+        parseConstSection(proc.constDecls);
+    }
     if (normalize(peek().value) == "var") {
         proc.localVars = parseVarDeclarations(true);
     } else if (peek().type == TokenType::IDENTIFIER &&
@@ -422,9 +584,11 @@ ProcedureDecl Parser::parseProcedureDeclaration() {
     expectKeyword("debut");
     proc.body = parseBlock("fin");
 
-    // Check if immediately followed by TDOL
+    while (peek().type == TokenType::COMMENT) next();
+
+    // The TDOL that follows this procedure describes solely its local variables/constants
     if (normalize(peek().value) == "tdol") {
-        parseTDOL(proc.localVars);
+        parseTDOL(proc.localVars, proc.constDecls);
     }
 
     return proc;
@@ -445,7 +609,10 @@ FunctionDecl Parser::parseFunctionDeclaration() {
     func.returnType = retType;
     func.line = nameTok.line;
 
-    // Optional local vars before Début
+    // Optional local constants and vars before Début
+    if (normalize(peek().value) == "const" || normalize(peek().value) == "constante" || normalize(peek().value) == "constantes") {
+        parseConstSection(func.constDecls);
+    }
     if (normalize(peek().value) == "var") {
         func.localVars = parseVarDeclarations(true);
     } else if (peek().type == TokenType::IDENTIFIER &&
@@ -459,9 +626,11 @@ FunctionDecl Parser::parseFunctionDeclaration() {
     expectKeyword("debut");
     func.body = parseBlock("fin");
 
-    // Check if immediately followed by TDOL
+    while (peek().type == TokenType::COMMENT) next();
+
+    // The TDOL that follows this function describes solely its local variables/constants
     if (normalize(peek().value) == "tdol") {
-        parseTDOL(func.localVars);
+        parseTDOL(func.localVars, func.constDecls);
     }
 
     return func;
@@ -537,6 +706,54 @@ void Parser::parseTDNT(Program& prog) {
     }
 }
 
+void Parser::parseConstSection(std::vector<ConstDecl>& constDecls) {
+    next(); // consume const/constante/constantes
+    consumeSemicolons();
+
+    while (peek().type != TokenType::END_OF_FILE) {
+        if (peek().type == TokenType::COMMENT) { next(); continue; }
+        std::string n = normalize(peek().value);
+        if (n == "const" || n == "constante" || n == "constantes" || n == "tdo" || n == "tdog" ||
+            n == "tdol" || n == "tdnt" || n == "debut" || n == "fin" || n == "procedure" ||
+            n == "fonction" || n == "algorithme" || n == "var" || n == "type") {
+            break;
+        }
+
+        if (peek().type == TokenType::IDENTIFIER) {
+            Token nameTok = expect(TokenType::IDENTIFIER);
+            if (match(TokenType::OPERATOR, "=")) {
+                auto expr = parseExpression();
+                if (match(TokenType::DELIMITER, ":")) {
+                    if (normalize(peek().value) == "constante" || normalize(peek().value) == "const") {
+                        next();
+                    }
+                }
+                ConstDecl cd;
+                cd.name = nameTok.value;
+                cd.valueExpr = expr;
+                cd.line = nameTok.line;
+                constDecls.push_back(cd);
+            } else if (match(TokenType::DELIMITER, ":")) {
+                if (normalize(peek().value) == "constante" || normalize(peek().value) == "const" || normalize(peek().value) == "cte") {
+                    next();
+                }
+                expect(TokenType::OPERATOR, "=");
+                auto expr = parseExpression();
+                ConstDecl cd;
+                cd.name = nameTok.value;
+                cd.valueExpr = expr;
+                cd.line = nameTok.line;
+                constDecls.push_back(cd);
+            } else {
+                break;
+            }
+            consumeSemicolons();
+        } else {
+            break;
+        }
+    }
+}
+
 void Parser::parseTDO(Program& prog) {
     if (normalize(peek().value) == "tdog") expectKeyword("tdog");
     else expectKeyword("tdo");
@@ -554,21 +771,52 @@ void Parser::parseTDO(Program& prog) {
         if (peek().type == TokenType::COMMENT) { next(); continue; }
         std::string n = normalize(peek().value);
         if (n == "tdo" || n == "tdog" || n == "tdol" || n == "tdnt" || n == "debut" || n == "fin" ||
-            n == "procedure" || n == "fonction" || n == "algorithme") {
+            n == "procedure" || n == "fonction" || n == "algorithme" || n == "const" || n == "constante" || n == "constantes") {
             break;
         }
 
-        if (peek().type == TokenType::IDENTIFIER && (peek(1).value == ":" || peek(1).value == ",")) {
-            auto decls = parseVarDeclarations(false);
-            for (auto& d : decls) prog.varDecls.push_back(std::move(d));
-            consumeSemicolons();
+        if (peek().type == TokenType::IDENTIFIER) {
+            if (peek(1).value == "=") {
+                Token id = next();
+                expect(TokenType::OPERATOR, "=");
+                auto expr = parseExpression();
+                if (match(TokenType::DELIMITER, ":")) {
+                    if (normalize(peek().value) == "constante" || normalize(peek().value) == "const") {
+                        next();
+                    }
+                }
+                ConstDecl cd;
+                cd.name = id.value;
+                cd.valueExpr = expr;
+                cd.line = id.line;
+                prog.constDecls.push_back(cd);
+                consumeSemicolons();
+            } else if (peek(1).value == ":" && (normalize(peek(2).value) == "constante" || normalize(peek(2).value) == "const" || normalize(peek(2).value) == "cte")) {
+                Token id = next();
+                next(); // consume ":"
+                next(); // consume "constante" / "const" / "cte"
+                expect(TokenType::OPERATOR, "=");
+                auto expr = parseExpression();
+                ConstDecl cd;
+                cd.name = id.value;
+                cd.valueExpr = expr;
+                cd.line = id.line;
+                prog.constDecls.push_back(cd);
+                consumeSemicolons();
+            } else if (peek(1).value == ":" || peek(1).value == ",") {
+                auto decls = parseVarDeclarations(false);
+                for (auto& d : decls) prog.varDecls.push_back(std::move(d));
+                consumeSemicolons();
+            } else {
+                break;
+            }
         } else {
             break;
         }
     }
 }
 
-void Parser::parseTDOL(std::vector<VarDecl>& localVars) {
+void Parser::parseTDOL(std::vector<VarDecl>& localVars, std::vector<ConstDecl>& localConsts) {
     expectKeyword("tdol");
     while (peek().type == TokenType::COMMENT) next();
     if (normalize(peek().value) == "objet") {
@@ -582,14 +830,45 @@ void Parser::parseTDOL(std::vector<VarDecl>& localVars) {
         if (peek().type == TokenType::COMMENT) { next(); continue; }
         std::string n = normalize(peek().value);
         if (n == "tdo" || n == "tdog" || n == "tdol" || n == "tdnt" || n == "debut" || n == "fin" ||
-            n == "procedure" || n == "fonction" || n == "algorithme") {
+            n == "procedure" || n == "fonction" || n == "algorithme" || n == "const" || n == "constante" || n == "constantes") {
             break;
         }
 
-        if (peek().type == TokenType::IDENTIFIER && (peek(1).value == ":" || peek(1).value == ",")) {
-            auto decls = parseVarDeclarations(false);
-            for (auto& d : decls) localVars.push_back(std::move(d));
-            consumeSemicolons();
+        if (peek().type == TokenType::IDENTIFIER) {
+            if (peek(1).value == "=") {
+                Token id = next();
+                expect(TokenType::OPERATOR, "=");
+                auto expr = parseExpression();
+                if (match(TokenType::DELIMITER, ":")) {
+                    if (normalize(peek().value) == "constante" || normalize(peek().value) == "const") {
+                        next();
+                    }
+                }
+                ConstDecl cd;
+                cd.name = id.value;
+                cd.valueExpr = expr;
+                cd.line = id.line;
+                localConsts.push_back(cd);
+                consumeSemicolons();
+            } else if (peek(1).value == ":" && (normalize(peek(2).value) == "constante" || normalize(peek(2).value) == "const" || normalize(peek(2).value) == "cte")) {
+                Token id = next();
+                next(); // consume ":"
+                next(); // consume "constante" / "const" / "cte"
+                expect(TokenType::OPERATOR, "=");
+                auto expr = parseExpression();
+                ConstDecl cd;
+                cd.name = id.value;
+                cd.valueExpr = expr;
+                cd.line = id.line;
+                localConsts.push_back(cd);
+                consumeSemicolons();
+            } else if (peek(1).value == ":" || peek(1).value == ",") {
+                auto decls = parseVarDeclarations(false);
+                for (auto& d : decls) localVars.push_back(std::move(d));
+                consumeSemicolons();
+            } else {
+                break;
+            }
         } else {
             break;
         }
@@ -1105,13 +1384,23 @@ std::shared_ptr<Expr> Parser::parseAddition() {
 }
 
 std::shared_ptr<Expr> Parser::parseTerm() {
-    auto left = parseFactor();
+    auto left = parsePower();
     while (peek().type == TokenType::OPERATOR &&
            (peek().value == "*" || peek().value == "/" || peek().value == "%" ||
             normalize(peek().value) == "div" || normalize(peek().value) == "mod")) {
         Token opTok = next();
-        auto right = parseFactor();
+        auto right = parsePower();
         left = makeNode<BinaryExpr>(normalize(opTok.value), left, right, opTok.line);
+    }
+    return left;
+}
+
+std::shared_ptr<Expr> Parser::parsePower() {
+    auto left = parseFactor();
+    if (peek().type == TokenType::OPERATOR && (peek().value == "**" || peek().value == "^")) {
+        Token opTok = next();
+        auto right = parsePower(); // right-associative recursion
+        return makeNode<BinaryExpr>("**", left, right, opTok.line);
     }
     return left;
 }

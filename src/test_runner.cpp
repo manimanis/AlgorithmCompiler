@@ -1,6 +1,8 @@
 #include "../include/lexer.hpp"
 #include "../include/parser.hpp"
 #include "../include/interpreter.hpp"
+#include "../include/bytecode_compiler.hpp"
+#include "../include/vm.hpp"
 #include "../include/semantic_analyzer.hpp"
 #include "../include/version.hpp"
 #include <iostream>
@@ -113,13 +115,22 @@ static TestDirectives parseDirectives(const std::string& source) {
 int main(int argc, char* argv[]) {
     initConsoleUtf8();
 
+    bool useAstMode = false;
     std::string testRoot = "tests";
-    if (argc > 1) {
-        testRoot = argv[1];
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "--ast") {
+            useAstMode = true;
+        } else if (arg == "--vm") {
+            useAstMode = false;
+        } else if (arg[0] != '-') {
+            testRoot = arg;
+        }
     }
 
     std::cout << "========================================================\n";
     std::cout << "  Suite de tests AlgorithmCompiler v" << getVersionString() << " (C++20)\n";
+    std::cout << "  Mode d'exécution : " << (useAstMode ? "Interpréteur AST" : "Machine Virtuelle Bytecode (VM)") << "\n";
     std::cout << "========================================================\n";
     std::cout << "Dossier cible : " << testRoot << "\n\n";
 
@@ -129,9 +140,15 @@ int main(int argc, char* argv[]) {
     }
 
     std::vector<fs::path> testFiles;
-    for (const auto& entry : fs::recursive_directory_iterator(testRoot)) {
-        if (entry.is_regular_file() && entry.path().extension() == ".alg") {
-            testFiles.push_back(entry.path());
+    if (fs::is_regular_file(testRoot)) {
+        if (fs::path(testRoot).extension() == ".alg") {
+            testFiles.push_back(testRoot);
+        }
+    } else {
+        for (const auto& entry : fs::recursive_directory_iterator(testRoot)) {
+            if (entry.is_regular_file() && entry.path().extension() == ".alg") {
+                testFiles.push_back(entry.path());
+            }
         }
     }
     std::sort(testFiles.begin(), testFiles.end());
@@ -146,7 +163,7 @@ int main(int argc, char* argv[]) {
     auto tStart = std::chrono::steady_clock::now();
 
     for (const auto& path : testFiles) {
-        std::string relPath = fs::relative(path, testRoot).generic_string();
+        std::string relPath = fs::is_regular_file(testRoot) ? path.filename().string() : fs::relative(path, testRoot).generic_string();
         fs::path parent = path.parent_path();
         std::string stem = path.stem().string();
 
@@ -192,6 +209,7 @@ int main(int argc, char* argv[]) {
             auto tokens = lexer.tokenize();
 
             Parser parser(std::move(tokens));
+            parser.setCurrentFilePath(path.string());
             Program prog = parser.parse();
 
             SemanticAnalyzer analyzer(source);
@@ -211,17 +229,30 @@ int main(int argc, char* argv[]) {
             opts.timeoutMs = directives.timeoutMs;
             opts.seed = directives.seed;
 
-            Interpreter interpreter(opts);
-            for (const auto& inVal : inputs) {
-                interpreter.addInput(inVal);
-            }
-
             std::string actualOutputRaw;
-            interpreter.setOutputCallback([&actualOutputRaw](const std::string& str) {
-                actualOutputRaw += str;
-            });
 
-            interpreter.run(prog);
+            if (useAstMode) {
+                Interpreter interpreter(opts);
+                for (const auto& inVal : inputs) {
+                    interpreter.addInput(inVal);
+                }
+                interpreter.setOutputCallback([&actualOutputRaw](const std::string& str) {
+                    actualOutputRaw += str;
+                });
+                interpreter.run(prog);
+            } else {
+                BytecodeCompiler compiler;
+                BytecodeProgram bcProg = compiler.compile(prog);
+
+                VM vm(opts);
+                for (const auto& inVal : inputs) {
+                    vm.addInput(inVal);
+                }
+                vm.setOutputCallback([&actualOutputRaw](const std::string& str) {
+                    actualOutputRaw += str;
+                });
+                vm.run(bcProg);
+            }
 
             if (hasExpectedError) {
                 testPassed = false;

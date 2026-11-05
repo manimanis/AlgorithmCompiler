@@ -2,34 +2,6 @@
 
 namespace algo {
 
-enum BuiltinId : uint32_t {
-    BI_RACINE = 1,
-    BI_CARRE,
-    BI_ABS,
-    BI_EXP,
-    BI_LN,
-    BI_LOG,
-    BI_ENT,
-    BI_ARRONDI,
-    BI_LONG,
-    BI_CHR,
-    BI_ORD,
-    BI_CONVCH,
-    BI_VALEUR,
-    BI_SOUS_CHAINE,
-    BI_POS,
-    BI_MAJUS,
-    BI_MINUS,
-    BI_EFFACER,
-    BI_ESTNUM,
-    BI_ALEA,
-    BI_GRAINE,
-    BI_OUVRIR,
-    BI_FERMER,
-    BI_LIRE_LIGNE,
-    BI_FIN_FICHIER
-};
-
 BytecodeCompiler::BytecodeCompiler() {
     initBuiltins();
 }
@@ -63,6 +35,20 @@ void BytecodeCompiler::initBuiltins() {
     builtinIds_["lire_ligne"] = BI_LIRE_LIGNE;
     builtinIds_["fin_fichier"] = BI_FIN_FICHIER;
     builtinIds_["finfichier"] = BI_FIN_FICHIER;
+    builtinIds_["sin"] = BI_SIN;
+    builtinIds_["cos"] = BI_COS;
+    builtinIds_["tan"] = BI_TAN;
+    builtinIds_["arctan"] = BI_ARCTAN;
+    builtinIds_["atan"] = BI_ARCTAN;
+    builtinIds_["frac"] = BI_FRAC;
+    builtinIds_["puissance"] = BI_PUISSANCE;
+    builtinIds_["inserer"] = BI_INSERER;
+    builtinIds_["taille_fichier"] = BI_TAILLE_FICHIER;
+    builtinIds_["taille"] = BI_TAILLE_FICHIER;
+    builtinIds_["position_fichier"] = BI_POSITION_FICHIER;
+    builtinIds_["pointeur"] = BI_POSITION_FICHIER;
+    builtinIds_["aller_a"] = BI_ALLER_A;
+    builtinIds_["pointer"] = BI_ALLER_A;
 }
 
 void BytecodeCompiler::emitByte(uint8_t byte) {
@@ -149,13 +135,27 @@ BytecodeProgram BytecodeCompiler::compile(const Program& prog) {
     BytecodeProgram result;
     result.name = prog.name;
     result.typeDecls = prog.typeDecls;
+    result.constDecls = prog.constDecls;
     result.varDecls = prog.varDecls;
+    varDecls_ = prog.varDecls;
 
+    typeMap_.clear();
+    for (const auto& td : prog.typeDecls) {
+        typeMap_[normalize(td.name)] = td.typeSpec;
+    }
+
+    paramByRefMap_.clear();
     for (const auto& proc : prog.procedures) {
         isProcedureMap_[normalize(proc.name)] = true;
+        std::vector<bool> refs;
+        for (const auto& p : proc.params) refs.push_back(p.byRef);
+        paramByRefMap_[normalize(proc.name)] = std::move(refs);
     }
     for (const auto& func : prog.functions) {
         isProcedureMap_[normalize(func.name)] = false;
+        std::vector<bool> refs;
+        for (const auto& p : func.params) refs.push_back(p.byRef);
+        paramByRefMap_[normalize(func.name)] = std::move(refs);
     }
 
     // Compile procedures
@@ -167,6 +167,7 @@ BytecodeProgram BytecodeCompiler::compile(const Program& prog) {
 
         locals_.clear();
         isInsideSubroutine_ = true;
+        currentLocalVars_ = &proc.localVars;
 
         for (const auto& p : proc.params) {
             BytecodeParam bp;
@@ -188,6 +189,13 @@ BytecodeProgram BytecodeCompiler::compile(const Program& prog) {
         }
 
         currentChunk_ = &bf.chunk;
+        for (const auto& cd : proc.constDecls) {
+            addLocal(cd.name, false);
+            compileExpr(cd.valueExpr);
+            int localIdx = findLocal(cd.name);
+            emitOp(OpCode::OP_POP_LOCAL);
+            emitUint32(static_cast<uint32_t>(localIdx));
+        }
         compileBlock(proc.body);
         emitOp(OpCode::OP_RETURN_VOID);
 
@@ -204,6 +212,7 @@ BytecodeProgram BytecodeCompiler::compile(const Program& prog) {
 
         locals_.clear();
         isInsideSubroutine_ = true;
+        currentLocalVars_ = &func.localVars;
 
         for (const auto& p : func.params) {
             BytecodeParam bp;
@@ -224,6 +233,13 @@ BytecodeProgram BytecodeCompiler::compile(const Program& prog) {
         }
 
         currentChunk_ = &bf.chunk;
+        for (const auto& cd : func.constDecls) {
+            addLocal(cd.name, false);
+            compileExpr(cd.valueExpr);
+            int localIdx = findLocal(cd.name);
+            emitOp(OpCode::OP_POP_LOCAL);
+            emitUint32(static_cast<uint32_t>(localIdx));
+        }
         compileBlock(func.body);
         // Default return null if no explicit return
         emitOp(OpCode::OP_CONST);
@@ -236,7 +252,14 @@ BytecodeProgram BytecodeCompiler::compile(const Program& prog) {
     // Compile main body
     locals_.clear();
     isInsideSubroutine_ = false;
+    currentLocalVars_ = nullptr;
     currentChunk_ = &result.mainChunk;
+
+    for (const auto& cd : prog.constDecls) {
+        compileExpr(cd.valueExpr);
+        emitOp(OpCode::OP_POP_GLOBAL);
+        emitUint32(addName(cd.name));
+    }
 
     compileBlock(prog.mainBody);
     emitOp(OpCode::OP_HALT);
@@ -263,6 +286,15 @@ void BytecodeCompiler::visit(AssignStmt& node) {
 }
 
 void BytecodeCompiler::visit(ArrayAssignStmt& node) {
+    if (node.targetExpr) {
+        auto arrExpr = std::make_shared<ArrayAccessExpr>(node.targetExpr, node.index, node.index2, node.line);
+        if (compileRefExpr(arrExpr)) {
+            compileExpr(node.value);
+            emitOp(OpCode::OP_SET_LVALUE);
+            return;
+        }
+    }
+
     int localIdx = -1;
     // Evaluate target (array container)
     if (node.targetExpr) {
@@ -300,6 +332,13 @@ void BytecodeCompiler::visit(ArrayAssignStmt& node) {
 }
 
 void BytecodeCompiler::visit(MemberAssignStmt& node) {
+    auto memExpr = std::make_shared<MemberAccessExpr>(node.target, node.member, node.line);
+    if (compileRefExpr(memExpr)) {
+        compileExpr(node.value);
+        emitOp(OpCode::OP_SET_LVALUE);
+        return;
+    }
+
     int localIdx = -1;
     std::string varName;
     if (auto varExpr = std::dynamic_pointer_cast<VariableExpr>(node.target)) {
@@ -332,30 +371,51 @@ void BytecodeCompiler::visit(WriteStmt& node) {
     emitUint32(addName(node.fin));
 }
 
+bool BytecodeCompiler::isFileType(const TypeSpec& ts) const {
+    if (ts.kind == TypeKind::FileText || ts.kind == TypeKind::FileData) return true;
+    if (toLower(ts.name).find("fichier") != std::string::npos) return true;
+    if (ts.kind == TypeKind::Simple && !ts.name.empty()) {
+        auto it = typeMap_.find(normalize(ts.name));
+        if (it != typeMap_.end()) {
+            return isFileType(it->second);
+        }
+    }
+    return false;
+}
+
+bool BytecodeCompiler::isFileVar(const std::string& varName) const {
+    std::string norm = normalize(varName);
+    auto checkVar = [&](const std::vector<VarDecl>& decls) {
+        for (const auto& vd : decls) {
+            for (const auto& n : vd.names) {
+                if (normalize(n) == norm) {
+                    if (isFileType(vd.typeSpec)) return true;
+                    if (toLower(vd.varType).find("fichier") != std::string::npos) return true;
+                    auto it = typeMap_.find(normalize(vd.varType));
+                    if (it != typeMap_.end() && isFileType(it->second)) return true;
+                }
+            }
+        }
+        return false;
+    };
+    if (checkVar(varDecls_)) return true;
+    if (currentLocalVars_ && checkVar(*currentLocalVars_)) return true;
+    return false;
+}
+
 void BytecodeCompiler::visit(ReadStmt& node) {
+    if (node.targets.size() == 2 && isFileVar(node.targets[0].name)) {
+        if (compileRefExpr(node.targets[1].targetExpr)) {
+            emitOp(OpCode::OP_READ_FILE);
+            emitUint32(addName(node.targets[0].name));
+            emitOp(OpCode::OP_SET_LVALUE);
+            return;
+        }
+    }
+
     for (const auto& tgt : node.targets) {
-        if (tgt.isArray) {
-            compileExpr(tgt.index);
-            if (tgt.is2D) {
-                compileExpr(tgt.index2);
-                emitOp(OpCode::OP_READ_ARRAY2D);
-            } else {
-                emitOp(OpCode::OP_READ_ARRAY);
-            }
-            emitUint32(addName(tgt.name));
-        } else if (!tgt.member.empty()) {
-            emitOp(OpCode::OP_READ_RECORD);
-            emitUint32(addName(tgt.name));
-            emitUint32(addName(tgt.member));
-        } else {
-            int localIdx = isInsideSubroutine_ ? findLocal(tgt.name) : -1;
-            if (localIdx != -1) {
-                emitOp(locals_[localIdx].byRef ? OpCode::OP_READ_REF : OpCode::OP_READ_LOCAL);
-                emitUint32(static_cast<uint32_t>(localIdx));
-            } else {
-                emitOp(OpCode::OP_READ_VAR);
-                emitUint32(addName(tgt.name));
-            }
+        if (compileRefExpr(tgt.targetExpr)) {
+            emitOp(OpCode::OP_READ_LVALUE);
         }
     }
 }
@@ -418,7 +478,19 @@ void BytecodeCompiler::visit(ForStmt& node) {
     bool isNegativeStep = false;
     if (node.step) {
         if (auto num = std::dynamic_pointer_cast<NumberExpr>(node.step)) {
+            if (num->value == 0) {
+                throw AlgoError("Le pas de la boucle Pour ne peut pas être nul", node.line);
+            }
             if (num->value < 0) isNegativeStep = true;
+        } else if (auto un = std::dynamic_pointer_cast<UnaryExpr>(node.step)) {
+            if (un->op == "-") {
+                if (auto num = std::dynamic_pointer_cast<NumberExpr>(un->operand)) {
+                    if (num->value == 0) {
+                        throw AlgoError("Le pas de la boucle Pour ne peut pas être nul", node.line);
+                    }
+                    if (num->value > 0) isNegativeStep = true;
+                }
+            }
         }
     }
     emitOp(isNegativeStep ? OpCode::OP_GE : OpCode::OP_LE);
@@ -427,6 +499,18 @@ void BytecodeCompiler::visit(ForStmt& node) {
 
     // 3. Body
     compileBlock(node.body);
+
+    // If we reached the end boundary, break without incrementing so the loop variable keeps the final iteration value
+    if (localIdx != -1) {
+        emitOp(locals_[localIdx].byRef ? OpCode::OP_GET_REF : OpCode::OP_GET_LOCAL);
+        emitUint32(static_cast<uint32_t>(localIdx));
+    } else {
+        emitOp(OpCode::OP_GET_GLOBAL);
+        emitUint32(addName(node.varName));
+    }
+    compileExpr(node.end);
+    emitOp(isNegativeStep ? OpCode::OP_LE : OpCode::OP_GE);
+    size_t lastIterJump = emitJump(OpCode::OP_JUMP_IF_TRUE);
 
     // 4. Increment: var = var + step
     if (localIdx != -1) {
@@ -456,6 +540,7 @@ void BytecodeCompiler::visit(ForStmt& node) {
     // 5. Loop back
     emitLoop(loopStart);
     patchJump(exitJump);
+    patchJump(lastIterJump);
 }
 
 void BytecodeCompiler::visit(WhileStmt& node) {
@@ -480,8 +565,85 @@ void BytecodeCompiler::visit(RepeatStmt& node) {
     emitInt32(backOffset);
 }
 
+bool BytecodeCompiler::compileRefExpr(const std::shared_ptr<Expr>& expr) {
+    if (!expr) return false;
+    currentLine_ = expr->line > 0 ? expr->line : currentLine_;
+
+    if (auto varExpr = std::dynamic_pointer_cast<VariableExpr>(expr)) {
+        int localIdx = isInsideSubroutine_ ? findLocal(varExpr->name) : -1;
+        if (localIdx != -1) {
+            if (locals_[localIdx].byRef) {
+                emitOp(OpCode::OP_PUSH_REF_REF);
+            } else {
+                emitOp(OpCode::OP_PUSH_REF_LOCAL);
+            }
+            emitUint32(static_cast<uint32_t>(localIdx));
+        } else {
+            emitOp(OpCode::OP_PUSH_REF_GLOBAL);
+            emitUint32(addName(varExpr->name));
+        }
+        return true;
+    }
+
+    if (auto arrExpr = std::dynamic_pointer_cast<ArrayAccessExpr>(expr)) {
+        if (arrExpr->target) {
+            if (!compileRefExpr(arrExpr->target)) return false;
+        } else {
+            int localIdx = isInsideSubroutine_ ? findLocal(arrExpr->name) : -1;
+            if (localIdx != -1) {
+                if (locals_[localIdx].byRef) {
+                    emitOp(OpCode::OP_PUSH_REF_REF);
+                } else {
+                    emitOp(OpCode::OP_PUSH_REF_LOCAL);
+                }
+                emitUint32(static_cast<uint32_t>(localIdx));
+            } else {
+                emitOp(OpCode::OP_PUSH_REF_GLOBAL);
+                emitUint32(addName(arrExpr->name));
+            }
+        }
+        compileExpr(arrExpr->index);
+        if (arrExpr->index2) {
+            compileExpr(arrExpr->index2);
+            emitOp(OpCode::OP_REF_ARRAY2D);
+        } else {
+            emitOp(OpCode::OP_REF_ARRAY);
+        }
+        return true;
+    }
+
+    if (auto memExpr = std::dynamic_pointer_cast<MemberAccessExpr>(expr)) {
+        if (!compileRefExpr(memExpr->object)) return false;
+        emitOp(OpCode::OP_REF_MEMBER);
+        emitUint32(addName(memExpr->member));
+        return true;
+    }
+
+    return false;
+}
+
+void BytecodeCompiler::compileCallArgument(const std::shared_ptr<Expr>& arg, bool isByRef) {
+    if (isByRef) {
+        if (compileRefExpr(arg)) {
+            return;
+        }
+    }
+    compileExpr(arg);
+}
+
 void BytecodeCompiler::visit(CallStmt& node) {
     std::string norm = normalize(node.name);
+    if ((norm == "lire_ligne" || norm == "lireligne") && node.args.size() >= 2) {
+        if (compileRefExpr(node.args[1])) {
+            compileExpr(node.args[0]);
+            emitOp(OpCode::OP_CALL_BUILTIN);
+            emitUint32(BI_LIRE_LIGNE);
+            emitUint32(1);
+            emitOp(OpCode::OP_SET_LVALUE);
+            return;
+        }
+    }
+
     auto bit = builtinIds_.find(norm);
     if (bit != builtinIds_.end()) {
         for (const auto& arg : node.args) {
@@ -494,8 +656,15 @@ void BytecodeCompiler::visit(CallStmt& node) {
         return;
     }
 
-    for (const auto& arg : node.args) {
-        compileExpr(arg);
+    const std::vector<bool>* refFlags = nullptr;
+    auto rit = paramByRefMap_.find(norm);
+    if (rit != paramByRefMap_.end()) {
+        refFlags = &rit->second;
+    }
+
+    for (size_t i = 0; i < node.args.size(); ++i) {
+        bool isRef = (refFlags && i < refFlags->size()) ? (*refFlags)[i] : false;
+        compileCallArgument(node.args[i], isRef);
     }
     emitOp(OpCode::OP_CALL);
     emitUint32(addName(node.name));
@@ -675,6 +844,7 @@ void BytecodeCompiler::visit(BinaryExpr& node) {
     if (op == "+") emitOp(OpCode::OP_ADD);
     else if (op == "-") emitOp(OpCode::OP_SUB);
     else if (op == "*") emitOp(OpCode::OP_MUL);
+    else if (op == "^" || op == "**") emitOp(OpCode::OP_POW);
     else if (op == "/") emitOp(OpCode::OP_DIV_REAL);
     else if (op == "div") emitOp(OpCode::OP_DIV_INT);
     else if (op == "mod" || op == "%") emitOp(OpCode::OP_MOD);
@@ -689,19 +859,30 @@ void BytecodeCompiler::visit(BinaryExpr& node) {
 
 void BytecodeCompiler::visit(CallExpr& node) {
     std::string norm = normalize(node.name);
-    auto bit = builtinIds_.find(norm);
-    if (bit != builtinIds_.end()) {
-        for (const auto& arg : node.args) {
-            compileExpr(arg);
+    bool isUserFunc = (isProcedureMap_.find(norm) != isProcedureMap_.end());
+
+    if (!isUserFunc) {
+        auto bit = builtinIds_.find(norm);
+        if (bit != builtinIds_.end()) {
+            for (const auto& arg : node.args) {
+                compileExpr(arg);
+            }
+            emitOp(OpCode::OP_CALL_BUILTIN);
+            emitUint32(bit->second);
+            emitUint32(static_cast<uint32_t>(node.args.size()));
+            return;
         }
-        emitOp(OpCode::OP_CALL_BUILTIN);
-        emitUint32(bit->second);
-        emitUint32(static_cast<uint32_t>(node.args.size()));
-        return;
     }
 
-    for (const auto& arg : node.args) {
-        compileExpr(arg);
+    const std::vector<bool>* refFlags = nullptr;
+    auto rit = paramByRefMap_.find(norm);
+    if (rit != paramByRefMap_.end()) {
+        refFlags = &rit->second;
+    }
+
+    for (size_t i = 0; i < node.args.size(); ++i) {
+        bool isRef = (refFlags && i < refFlags->size()) ? (*refFlags)[i] : false;
+        compileCallArgument(node.args[i], isRef);
     }
     emitOp(OpCode::OP_CALL);
     emitUint32(addName(node.name));

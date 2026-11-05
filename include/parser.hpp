@@ -3,6 +3,7 @@
 #include "lexer.hpp"
 #include "ast.hpp"
 #include "arena.hpp"
+#include <set>
 
 namespace algo {
 
@@ -12,6 +13,8 @@ public:
     Program parse();
 
     std::shared_ptr<Arena> getArena() const { return arena_; }
+    void setCurrentFilePath(const std::string& path) { currentFilePath_ = path; }
+    void setImportedFiles(const std::set<std::string>& files) { importedFiles_ = files; }
 
     template<typename T, typename... Args>
     std::shared_ptr<T> makeNode(Args&&... args) {
@@ -25,6 +28,8 @@ private:
     std::vector<Token> tokens_;
     size_t pos_;
     std::shared_ptr<Arena> arena_;
+    std::string currentFilePath_;
+    std::set<std::string> importedFiles_;
 
     const Token& peek(size_t offset = 0) const;
     const Token& next();
@@ -38,6 +43,7 @@ private:
 
     // Top-level
     void parseTopLevel(Program& prog);
+    void parseImport(Program& prog);
     TypeDecl parseTypeDeclaration();
     TypeSpec parseTypeSpec();
     std::vector<VarDecl> parseVarDeclarations(bool hasVarKeyword = true);
@@ -46,10 +52,11 @@ private:
     std::vector<ParamDecl> parseParamList();
     std::vector<std::shared_ptr<Stmt>> parseBlock(const std::string& endKeyword = "fin");
 
-    // TDO, TDNT, TDOL
+    // TDO, TDNT, TDOL, Const
     void parseTDNT(Program& prog);
     void parseTDO(Program& prog);
-    void parseTDOL(std::vector<VarDecl>& localVars);
+    void parseTDOL(std::vector<VarDecl>& localVars, std::vector<ConstDecl>& localConsts);
+    void parseConstSection(std::vector<ConstDecl>& constDecls);
 
     // Statements
     std::shared_ptr<Stmt> parseStatement();
@@ -71,6 +78,7 @@ private:
     std::shared_ptr<Expr> parseComparison();
     std::shared_ptr<Expr> parseAddition();
     std::shared_ptr<Expr> parseTerm();
+    std::shared_ptr<Expr> parsePower();
     std::shared_ptr<Expr> parseFactor();
     std::vector<std::shared_ptr<Expr>> parseArgs();
 };

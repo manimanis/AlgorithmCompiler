@@ -1,36 +1,9 @@
 #include "../include/vm.hpp"
 #include <regex>
 #include <filesystem>
+#include <cmath>
 
 namespace algo {
-
-enum BuiltinId : uint32_t {
-    BI_RACINE = 1,
-    BI_CARRE,
-    BI_ABS,
-    BI_EXP,
-    BI_LN,
-    BI_LOG,
-    BI_ENT,
-    BI_ARRONDI,
-    BI_LONG,
-    BI_CHR,
-    BI_ORD,
-    BI_CONVCH,
-    BI_VALEUR,
-    BI_SOUS_CHAINE,
-    BI_POS,
-    BI_MAJUS,
-    BI_MINUS,
-    BI_EFFACER,
-    BI_ESTNUM,
-    BI_ALEA,
-    BI_GRAINE,
-    BI_OUVRIR,
-    BI_FERMER,
-    BI_LIRE_LIGNE,
-    BI_FIN_FICHIER
-};
 
 VM::VM(InterpreterOptions options)
     : options_(options), rng_(options.seed) {
@@ -56,7 +29,7 @@ Value& VM::peek(size_t distance) {
 void VM::checkIterationLimit(int line) {
     iterationCount_++;
     if (iterationCount_ > options_.maxIterations) {
-        throw AlgoError("Limite maximale d'itérations dépassée (" + std::to_string(options_.maxIterations) + " itérations) - boucle infinie potentielle", line);
+        throw AlgoError("Limite d'itérations atteinte (" + std::to_string(options_.maxIterations) + " itérations) - boucle infinie potentielle", line);
     }
 }
 
@@ -64,7 +37,7 @@ void VM::checkTimeout(int line) {
     auto now = std::chrono::steady_clock::now();
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime_).count();
     if ((uint64_t)elapsed > options_.timeoutMs) {
-        throw AlgoError("Délai d'exécution dépassé (" + std::to_string(options_.timeoutMs) + " ms) - boucle infinie potentielle", line);
+        throw AlgoError("Timeout: Délai d'exécution dépassé (" + std::to_string(options_.timeoutMs) + " ms) - boucle infinie potentielle", line);
     }
 }
 
@@ -120,12 +93,12 @@ Value VM::convertInput(const std::string& inputStr, const Value& currentVal) {
 
 Value VM::getDefaultValue(const TypeSpec& ts, const std::string& varName) const {
     if (ts.kind == TypeKind::Array1D) {
-        Value elemDef = getDefaultValue(ts.elemType);
+        Value elemDef = getDefaultValue(ts.elemType, varName);
         std::vector<Value> arr(ts.rows, elemDef);
         return Value(std::move(arr));
     }
     if (ts.kind == TypeKind::Array2D) {
-        Value elemDef = getDefaultValue(ts.elemType);
+        Value elemDef = getDefaultValue(ts.elemType, varName);
         std::vector<Value> row(ts.cols, elemDef);
         std::vector<Value> matrix(ts.rows, Value(row));
         return Value(std::move(matrix));
@@ -145,10 +118,10 @@ Value VM::getDefaultValue(const TypeSpec& ts, const std::string& varName) const 
         v.fileLogicalName = varName;
         return v;
     }
-    return getDefaultValue(ts.name.empty() ? ts.elemType : ts.name);
+    return getDefaultValue(ts.name.empty() ? ts.elemType : ts.name, varName);
 }
 
-Value VM::getDefaultValue(const std::string& typeName) const {
+Value VM::getDefaultValue(const std::string& typeName, const std::string& varName) const {
     std::string norm = normalize(typeName);
     if (norm == "entier") return Value((int64_t)0);
     if (norm == "reel") return Value((double)0.0);
@@ -160,9 +133,9 @@ Value VM::getDefaultValue(const std::string& typeName) const {
     if (it != typeDefs_.end()) {
         const auto& td = it->second;
         if (td.typeSpec.kind != TypeKind::Simple) {
-            return getDefaultValue(td.typeSpec);
+            return getDefaultValue(td.typeSpec, varName);
         }
-        Value elemDef = getDefaultValue(td.elemType);
+        Value elemDef = getDefaultValue(td.elemType, varName);
         std::vector<Value> arr(td.arraySize, elemDef);
         return Value(std::move(arr));
     }
@@ -170,6 +143,15 @@ Value VM::getDefaultValue(const std::string& typeName) const {
 }
 
 void VM::writeFileData(AlgoFile& f, const Value& val) {
+    std::streampos curPos = f.stream.tellp();
+    if (curPos != (std::streampos)-1) {
+        if (f.currentRecordIndex >= (int64_t)f.recordOffsets.size()) {
+            f.recordOffsets.push_back(curPos);
+        } else {
+            f.recordOffsets[f.currentRecordIndex] = curPos;
+        }
+        f.currentRecordIndex++;
+    }
     if (val.isInt()) {
         f.stream << "I " << val.asInt() << "\n";
     } else if (val.isReal()) {
@@ -314,8 +296,28 @@ void VM::executeBuiltin(uint32_t builtinId, uint32_t argCount, int line) {
         }
         case BI_ORD: {
             if (args.empty()) throw AlgoError("ord attend 1 argument", line);
+            if (args[0].isInt()) {
+                push(args[0]);
+                break;
+            }
             std::string s = args[0].asString();
-            push(Value((int64_t)(s.empty() ? 0 : (unsigned char)s[0])));
+            std::string normS = normalize(s);
+            bool foundEnum = false;
+            for (const auto& kv : typeDefs_) {
+                if (kv.second.typeSpec.kind == TypeKind::Enum) {
+                    for (size_t i = 0; i < kv.second.typeSpec.enumValues.size(); i++) {
+                        if (normalize(kv.second.typeSpec.enumValues[i]) == normS) {
+                            push(Value((int64_t)i));
+                            foundEnum = true;
+                            break;
+                        }
+                    }
+                }
+                if (foundEnum) break;
+            }
+            if (!foundEnum) {
+                push(Value((int64_t)(s.empty() ? 0 : (unsigned char)s[0])));
+            }
             break;
         }
         case BI_CONVCH: {
@@ -448,6 +450,21 @@ void VM::executeBuiltin(uint32_t builtinId, uint32_t argCount, int line) {
             file->stream.open(path, m);
 #endif
             file->isOpen = file->stream.is_open();
+            file->recordOffsets.clear();
+            file->currentRecordIndex = 0;
+            if (mode == "rb") {
+                while (true) {
+                    file->stream >> std::ws;
+                    std::streampos p = file->stream.tellg();
+                    if (p == (std::streampos)-1 || file->stream.peek() == std::char_traits<char>::eof()) break;
+                    file->recordOffsets.push_back(p);
+                    readFileData(*file);
+                    if (file->stream.fail()) break;
+                }
+                file->stream.clear();
+                file->stream.seekg(0, std::ios::beg);
+                file->currentRecordIndex = 0;
+            }
             openFiles_[fNorm] = file;
             push(Value());
             break;
@@ -500,6 +517,89 @@ void VM::executeBuiltin(uint32_t builtinId, uint32_t argCount, int line) {
             push(Value(c == std::char_traits<char>::eof()));
             break;
         }
+        case BI_SIN: {
+            if (args.empty()) throw AlgoError("sin attend 1 argument", line);
+            push(Value(std::sin(args[0].asReal())));
+            break;
+        }
+        case BI_COS: {
+            if (args.empty()) throw AlgoError("cos attend 1 argument", line);
+            push(Value(std::cos(args[0].asReal())));
+            break;
+        }
+        case BI_TAN: {
+            if (args.empty()) throw AlgoError("tan attend 1 argument", line);
+            push(Value(std::tan(args[0].asReal())));
+            break;
+        }
+        case BI_ARCTAN: {
+            if (args.empty()) throw AlgoError("arctan attend 1 argument", line);
+            push(Value(std::atan(args[0].asReal())));
+            break;
+        }
+        case BI_FRAC: {
+            if (args.empty()) throw AlgoError("frac attend 1 argument", line);
+            double intp;
+            push(Value(std::modf(args[0].asReal(), &intp)));
+            break;
+        }
+        case BI_PUISSANCE: {
+            if (args.size() < 2) throw AlgoError("puissance attend 2 arguments", line);
+            double res = std::pow(args[0].asReal(), args[1].asReal());
+            if (args[0].isInt() && args[1].isInt() && args[1].asInt() >= 0) {
+                push(Value((int64_t)std::round(res)));
+            } else {
+                push(Value(res));
+            }
+            break;
+        }
+        case BI_INSERER: {
+            if (args.size() < 3) throw AlgoError("inserer attend 3 arguments", line);
+            std::string ch1 = args[0].asString();
+            std::string ch2 = args[1].asString();
+            int64_t pos = args[2].asInt();
+            size_t len = utf8Length(ch2);
+            if (pos < 0) pos = 0;
+            if (pos > (int64_t)len) pos = len;
+            push(Value(utf8Substr(ch2, 0, (size_t)pos) + ch1 + utf8Substr(ch2, (size_t)pos, len)));
+            break;
+        }
+        case BI_TAILLE_FICHIER: {
+            if (args.empty()) throw AlgoError("taille_fichier attend 1 argument", line);
+            std::string fVar = args[0].fileLogicalName.empty() ? args[0].asString() : args[0].fileLogicalName;
+            auto it = openFiles_.find(normalize(fVar));
+            if (it == openFiles_.end() || !it->second->isOpen) push(Value((int64_t)0));
+            else push(Value((int64_t)it->second->recordOffsets.size()));
+            break;
+        }
+        case BI_POSITION_FICHIER: {
+            if (args.empty()) throw AlgoError("position_fichier attend 1 argument", line);
+            std::string fVar = args[0].fileLogicalName.empty() ? args[0].asString() : args[0].fileLogicalName;
+            auto it = openFiles_.find(normalize(fVar));
+            if (it == openFiles_.end() || !it->second->isOpen) push(Value((int64_t)0));
+            else push(Value(it->second->currentRecordIndex));
+            break;
+        }
+        case BI_ALLER_A: {
+            if (args.size() < 2) throw AlgoError("aller_a attend 2 arguments", line);
+            std::string fVar = args[0].fileLogicalName.empty() ? args[0].asString() : args[0].fileLogicalName;
+            auto it = openFiles_.find(normalize(fVar));
+            if (it == openFiles_.end() || !it->second->isOpen) throw AlgoError("Fichier non ouvert", line);
+            int64_t targetPos = args[1].asInt();
+            auto& f = *(it->second);
+            if (targetPos < 0 || targetPos > (int64_t)f.recordOffsets.size()) throw AlgoError("Position fichier hors bornes", line);
+            f.currentRecordIndex = targetPos;
+            f.stream.clear();
+            if (targetPos < (int64_t)f.recordOffsets.size()) {
+                f.stream.seekg(f.recordOffsets[targetPos]);
+                f.stream.seekp(f.recordOffsets[targetPos]);
+            } else {
+                f.stream.seekg(0, std::ios::end);
+                f.stream.seekp(0, std::ios::end);
+            }
+            push(Value());
+            break;
+        }
         default:
             push(Value());
             break;
@@ -508,6 +608,7 @@ void VM::executeBuiltin(uint32_t builtinId, uint32_t argCount, int line) {
 
 void VM::run(const BytecodeProgram& prog) {
     stack_.clear();
+    stack_.reserve(500000);
     frames_.clear();
     globals_.clear();
     typeDefs_.clear();
@@ -521,6 +622,11 @@ void VM::run(const BytecodeProgram& prog) {
 
     for (const auto& td : prog.typeDecls) {
         typeDefs_[normalize(td.name)] = td;
+        if (td.typeSpec.kind == TypeKind::Enum) {
+            for (const auto& ev : td.typeSpec.enumValues) {
+                globals_[normalize(ev)] = Value(ev);
+            }
+        }
     }
 
     // Initialize globals
@@ -532,7 +638,7 @@ void VM::run(const BytecodeProgram& prog) {
             if (vd.typeSpec.kind != TypeKind::Simple || !vd.typeSpec.name.empty()) {
                 defVal = getDefaultValue(vd.typeSpec, name);
             } else {
-                defVal = getDefaultValue(vd.varType);
+                defVal = getDefaultValue(vd.varType, name);
             }
             globals_[normalize(name)] = std::move(defVal);
         }
@@ -683,6 +789,106 @@ void VM::run(const BytecodeProgram& prog) {
                 break;
             }
 
+            case OpCode::OP_PUSH_REF_GLOBAL: {
+                uint32_t nameIdx = frame->chunk->readUint32(frame->ip);
+                const std::string& name = frame->chunk->names[nameIdx];
+                std::string norm = normalize(name);
+                auto it = globals_.find(norm);
+                if (it != globals_.end()) {
+                    push(Value::makeRef(&it->second));
+                } else {
+                    globals_[norm] = Value();
+                    push(Value::makeRef(&globals_[norm]));
+                }
+                break;
+            }
+
+            case OpCode::OP_PUSH_REF_LOCAL: {
+                uint32_t slot = frame->chunk->readUint32(frame->ip);
+                push(Value::makeRef(&stack_[frame->stackBase + slot]));
+                break;
+            }
+
+            case OpCode::OP_PUSH_REF_REF: {
+                uint32_t slot = frame->chunk->readUint32(frame->ip);
+                Value* ptr = (slot < frame->refSlots.size() && frame->refSlots[slot].ptr != nullptr)
+                    ? frame->refSlots[slot].ptr : &stack_[frame->stackBase + slot];
+                push(Value::makeRef(ptr));
+                break;
+            }
+
+            case OpCode::OP_REF_ARRAY: {
+                int64_t idx = pop().asInt();
+                Value refVal = pop();
+                if (!refVal.isRef() || !refVal.refPtr || !refVal.refPtr->isArray()) {
+                    throw AlgoError("Référence de tableau invalide pour l'indexation", curLine);
+                }
+                Value* arrPtr = refVal.refPtr;
+                if (idx < 0 || (size_t)idx >= arrPtr->arrVal.size()) {
+                    throw AlgoError("Indice tableau hors bornes", curLine);
+                }
+                push(Value::makeRef(&arrPtr->arrVal[idx]));
+                break;
+            }
+
+            case OpCode::OP_REF_ARRAY2D: {
+                int64_t c = pop().asInt();
+                int64_t r = pop().asInt();
+                Value refVal = pop();
+                if (!refVal.isRef() || !refVal.refPtr || !refVal.refPtr->isArray()) {
+                    throw AlgoError("Référence de matrice invalide pour l'indexation", curLine);
+                }
+                Value* matPtr = refVal.refPtr;
+                if (r < 0 || (size_t)r >= matPtr->arrVal.size()) {
+                    throw AlgoError("Indice ligne matrice hors bornes", curLine);
+                }
+                Value& row = matPtr->arrVal[r];
+                if (!row.isArray() || c < 0 || (size_t)c >= row.arrVal.size()) {
+                    throw AlgoError("Indice colonne matrice hors bornes", curLine);
+                }
+                push(Value::makeRef(&row.arrVal[c]));
+                break;
+            }
+
+            case OpCode::OP_REF_MEMBER: {
+                uint32_t fIdx = frame->chunk->readUint32(frame->ip);
+                const std::string& fieldName = frame->chunk->names[fIdx];
+                Value refVal = pop();
+                if (!refVal.isRef() || !refVal.refPtr || !refVal.refPtr->isRecord()) {
+                    throw AlgoError("Référence d'enregistrement invalide pour l'accès au champ", curLine);
+                }
+                Value* recPtr = refVal.refPtr;
+                auto it = recPtr->recVal.find(fieldName);
+                if (it != recPtr->recVal.end()) {
+                    push(Value::makeRef(&it->second));
+                } else {
+                    std::string norm = normalize(fieldName);
+                    bool found = false;
+                    for (auto& kv : recPtr->recVal) {
+                        if (normalize(kv.first) == norm) {
+                            push(Value::makeRef(&kv.second));
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) {
+                        push(Value::makeRef(&recPtr->recVal[fieldName]));
+                    }
+                }
+                break;
+            }
+
+            case OpCode::OP_SET_LVALUE: {
+                Value val = pop();
+                Value refVal = pop();
+                if (refVal.isRef() && refVal.refPtr) {
+                    *(refVal.refPtr) = val;
+                } else {
+                    throw AlgoError("Cible d'affectation non valide", curLine);
+                }
+                break;
+            }
+
             case OpCode::OP_ADD: {
                 Value b = pop();
                 Value a = pop();
@@ -701,6 +907,18 @@ void VM::run(const BytecodeProgram& prog) {
                 Value b = pop();
                 Value a = pop();
                 push(a.mul(b));
+                break;
+            }
+
+            case OpCode::OP_POW: {
+                Value b = pop();
+                Value a = pop();
+                double res = std::pow(a.asReal(), b.asReal());
+                if (a.isInt() && b.isInt() && b.asInt() >= 0) {
+                    push(Value((int64_t)std::round(res)));
+                } else {
+                    push(Value(res));
+                }
                 break;
             }
 
@@ -1101,6 +1319,37 @@ void VM::run(const BytecodeProgram& prog) {
                 break;
             }
 
+            case OpCode::OP_READ_FILE: {
+                uint32_t fIdx = frame->chunk->readUint32(frame->ip);
+                const std::string& fVar = frame->chunk->names[fIdx];
+                std::string fNorm = normalize(fVar);
+                auto it = openFiles_.find(fNorm);
+                if (it == openFiles_.end() || !it->second->isOpen) {
+                    throw AlgoError("Fichier '" + fVar + "' non ouvert", curLine);
+                }
+                auto& f = *(it->second);
+                if (f.isText) {
+                    std::ostringstream ss;
+                    ss << f.stream.rdbuf();
+                    push(Value(ss.str()));
+                } else {
+                    Value val = readFileData(f);
+                    f.currentRecordIndex++;
+                    push(val);
+                }
+                break;
+            }
+
+            case OpCode::OP_READ_LVALUE: {
+                Value refVal = pop();
+                if (!refVal.isRef() || !refVal.refPtr) {
+                    throw AlgoError("Référence invalide pour la lecture", curLine);
+                }
+                std::string inputStr = requestInput("Saisir une valeur:");
+                *(refVal.refPtr) = convertInput(inputStr, *(refVal.refPtr));
+                break;
+            }
+
             case OpCode::OP_CALL: {
                 uint32_t nameIdx = frame->chunk->readUint32(frame->ip);
                 uint32_t arity = frame->chunk->readUint32(frame->ip);
@@ -1125,7 +1374,13 @@ void VM::run(const BytecodeProgram& prog) {
                 newFrame.refSlots.resize(func.params.size());
                 for (size_t p = 0; p < func.params.size(); ++p) {
                     if (func.params[p].byRef) {
-                        newFrame.refSlots[p].ptr = &stack_[argBase + p];
+                        Value& argVal = stack_[argBase + p];
+                        if (argVal.isRef()) {
+                            newFrame.refSlots[p].ptr = argVal.refPtr;
+                            argVal = *(argVal.refPtr);
+                        } else {
+                            newFrame.refSlots[p].ptr = &stack_[argBase + p];
+                        }
                     }
                 }
 
@@ -1146,7 +1401,7 @@ void VM::run(const BytecodeProgram& prog) {
                         if (vd.typeSpec.kind != TypeKind::Simple || !vd.typeSpec.name.empty()) {
                             defVal = getDefaultValue(vd.typeSpec, vName);
                         } else {
-                            defVal = getDefaultValue(vd.varType);
+                            defVal = getDefaultValue(vd.varType, vName);
                         }
                         push(std::move(defVal));
                     }
