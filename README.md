@@ -4,6 +4,10 @@
 
 Le projet est développé en **C++20 moderne** et dispose d'une suite complète de **214 tests unitaires automatisés validés à 100%**, d'un **harnais de fuzzing automatisé** et d'un pipeline de **CI/CD multiplateforme** (Ubuntu, Windows, macOS).
 
+> 📚 **Documentation Complète & Manuel de Référence :**
+> - [📖 Guide Complet de Référence (Markdown)](docs/GUIDE_REFERENCE.md)
+> - [🌐 Manuel Interactif HTML avec Recherche & Exemples](docs/reference.html)
+
 ---
 
 ## 📑 Sommaire
