@@ -9,21 +9,24 @@ on:
 
 jobs:
   build-and-test:
-    name: Build & Test (${{ matrix.os }})
+    name: Build & Test (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - name: Linux x86_64
+            os: ubuntu-latest
             cxx: g++
             artifact_name: algo-linux-x86_64
             bin_ext: ""
-          - os: macos-latest
+          - name: macOS x86_64
+            os: macos-latest
             cxx: clang++
             artifact_name: algo-macos-x86_64
             bin_ext: ""
-          - os: windows-latest
+          - name: Windows x86_64
+            os: windows-latest
             cxx: g++
             artifact_name: algo-windows-x86_64
             bin_ext: ".exe"
@@ -42,85 +45,92 @@ jobs:
         with:
           python-version: '3.11'
 
-      # Configuration de l'environnement Linux
+      - name: Install Python dependencies (NumPy)
+        run: |
+          python -m pip install --upgrade pip
+          pip install numpy
+
+      # --- Configuration spécifique Linux ---
       - name: Install dependencies (Linux)
-        if: runner.os == 'Linux'
+        if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
           sudo apt-get install -y g++ make
 
-      # Configuration de l'environnement Windows
-      - name: Setup MSYS2 / MinGW UCRT64 (Windows)
-        if: runner.os == 'Windows'
+      # --- Configuration spécifique Windows (MSYS2 UCRT64) ---
+      - name: Setup MSYS2 & MinGW Toolchain (Windows)
+        if: matrix.os == 'windows-latest'
         uses: msys2/setup-msys2@v2
         with:
           msystem: UCRT64
-          update: true
+          update: false
+          path-type: inherit
           install: >-
+            make
             mingw-w64-ucrt-x86_64-gcc
             mingw-w64-ucrt-x86_64-make
 
-      # Compilation sur Linux / macOS
-      - name: Build project (Unix)
-        if: runner.os != 'Windows'
+      # --- Compilation Unix (Linux & macOS) ---
+      - name: Build project (Linux / macOS)
+        if: matrix.os != 'windows-latest'
         run: |
           make CXX=${{ matrix.cxx }} CXXFLAGS="-std=c++20 -O2 -Wall -Wextra -Iinclude" all
 
-      # Compilation sur Windows
+      # --- Compilation Windows ---
       - name: Build project (Windows)
-        if: runner.os == 'Windows'
+        if: matrix.os == 'windows-latest'
         shell: msys2 {0}
         run: |
+          if ! command -v make &> /dev/null; then
+            cp /ucrt64/bin/mingw32-make.exe /ucrt64/bin/make.exe
+          fi
           make TARGET_OS=windows CXXFLAGS="-std=c++20 -O2 -Wall -Wextra -Iinclude" all
 
-      # Exécution de la suite de 214 tests unitaires
-      - name: Run Unit Tests (214 tests)
-        if: runner.os != 'Windows'
+      # --- Tests Unitaires (214 tests) ---
+      - name: Run Unit Tests (Linux / macOS)
+        if: matrix.os != 'windows-latest'
         run: |
           ./run_tests
 
       - name: Run Unit Tests (Windows)
-        if: runner.os == 'Windows'
+        if: matrix.os == 'windows-latest'
         shell: msys2 {0}
         run: |
           ./run_tests.exe
 
-      # Exécution du Fuzzing (1 000 itérations de mutations agressives)
-      - name: Run Fuzzing Harness (1000 iterations)
-        if: runner.os != 'Windows'
+      # --- Fuzzing Automatisé (1 000 itérations) ---
+      - name: Run Fuzzing Harness (Linux / macOS)
+        if: matrix.os != 'windows-latest'
         run: |
           ./fuzz_runner 1000
 
       - name: Run Fuzzing Harness (Windows)
-        if: runner.os == 'Windows'
+        if: matrix.os == 'windows-latest'
         shell: msys2 {0}
         run: |
           ./fuzz_runner.exe 1000
 
-      # Benchmarks de performance VM
-      - name: Run VM Performance Benchmarks
-        if: runner.os != 'Windows'
+      # --- Benchmarks de performance VM ---
+      - name: Run VM Benchmarks (Linux / macOS)
+        if: matrix.os != 'windows-latest'
         run: |
           make bench
 
-      - name: Run VM Performance Benchmarks (Windows)
-        if: runner.os == 'Windows'
+      - name: Run VM Benchmarks (Windows)
+        if: matrix.os == 'windows-latest'
         shell: msys2 {0}
         run: |
-          make bench
+          ./algo.exe benchmarks/01_heavy_loop.alg --vm --bench
+          ./algo.exe benchmarks/02_fibonacci_deep.alg --vm --bench
+          ./algo.exe benchmarks/03_tri_selection.alg --vm --bench
+          ./algo.exe benchmarks/05_crible_premiers.alg --vm --bench
 
-      # Validation de la suite du transpilateur Python
+      # --- Validation du transpilateur Python ---
       - name: Validate Python Transpiler
-        if: runner.os != 'Windows'
         run: |
           node scripts/test_transpiler.js
 
-      - name: Validate Python Transpiler (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          node scripts/test_transpiler.js
-
-      # Upload des artefacts binaires
+      # --- Sauvegarde des artefacts de build ---
       - name: Upload Binary Artifact
         uses: actions/upload-artifact@v4
         with:

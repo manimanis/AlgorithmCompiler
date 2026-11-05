@@ -2,9 +2,20 @@ const { spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-const py = process.platform === 'win32'
-  ? (process.env.PYTHON || 'C:\\msys64\\ucrt64\\bin\\python3.exe')
-  : (process.env.PYTHON || 'python3');
+let py = process.env.PYTHON;
+if (!py) {
+  if (process.platform === 'win32') {
+    if (fs.existsSync('C:\\msys64\\ucrt64\\bin\\python3.exe')) {
+      py = 'C:\\msys64\\ucrt64\\bin\\python3.exe';
+    } else if (fs.existsSync('C:\\MSYS2\\ucrt64\\bin\\python3.exe')) {
+      py = 'C:\\MSYS2\\ucrt64\\bin\\python3.exe';
+    } else {
+      py = 'python';
+    }
+  } else {
+    py = 'python3';
+  }
+}
 const algo = fs.existsSync(path.resolve('algo'))
   ? path.resolve('algo')
   : path.resolve('algo.exe');
