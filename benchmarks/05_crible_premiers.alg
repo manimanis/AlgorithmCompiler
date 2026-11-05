@@ -1,4 +1,6 @@
 // Benchmark: Recherche de nombres premiers (crible jusqu'à 10000)
+// @max-iter: 20000000
+// @timeout: 120000
 Fonction est_premier(n: entier): booléen
 Début
     Si n < 2 Alors

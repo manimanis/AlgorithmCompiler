@@ -79,36 +79,15 @@ struct TestDirectives {
 };
 
 static TestDirectives parseDirectives(const std::string& source) {
+    InterpreterOptions base;
+    base.maxIterations = 5000000;
+    base.timeoutMs = 10000;
+    base.seed = 42;
+    InterpreterOptions opts = InterpreterOptions::fromSource(source, base);
     TestDirectives d;
-    std::istringstream iss(source);
-    std::string line;
-    while (std::getline(iss, line)) {
-        std::string trimmed = trim(line);
-        if (trimmed.rfind("//", 0) != 0) {
-            // Stop at first non-comment line
-            if (!trimmed.empty()) break;
-            continue;
-        }
-        // Look for directives: // @max-iter: N
-        size_t pos = trimmed.find("@max-iter:");
-        if (pos != std::string::npos) {
-            try {
-                d.maxIterations = std::stoull(trim(trimmed.substr(pos + 10)));
-            } catch (...) {}
-        }
-        pos = trimmed.find("@timeout:");
-        if (pos != std::string::npos) {
-            try {
-                d.timeoutMs = std::stoull(trim(trimmed.substr(pos + 9)));
-            } catch (...) {}
-        }
-        pos = trimmed.find("@seed:");
-        if (pos != std::string::npos) {
-            try {
-                d.seed = (uint32_t)std::stoul(trim(trimmed.substr(pos + 6)));
-            } catch (...) {}
-        }
-    }
+    d.maxIterations = opts.maxIterations;
+    d.timeoutMs = opts.timeoutMs;
+    d.seed = opts.seed;
     return d;
 }
 

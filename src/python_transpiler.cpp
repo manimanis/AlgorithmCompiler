@@ -281,6 +281,44 @@ void PythonTranspiler::transpileImports(std::ostringstream& ss) {
     }
 }
 
+static void collectAssignedVariables(const std::vector<std::shared_ptr<Stmt>>& stmts, std::set<std::string>& out) {
+    for (const auto& stmt : stmts) {
+        if (!stmt) continue;
+        if (auto as = std::dynamic_pointer_cast<AssignStmt>(stmt)) {
+            out.insert(normalize(as->target));
+        } else if (auto aas = std::dynamic_pointer_cast<ArrayAssignStmt>(stmt)) {
+            if (!aas->target.empty()) out.insert(normalize(aas->target));
+            if (auto varExpr = std::dynamic_pointer_cast<VariableExpr>(aas->targetExpr)) {
+                out.insert(normalize(varExpr->name));
+            }
+        } else if (auto ma = std::dynamic_pointer_cast<MemberAssignStmt>(stmt)) {
+            if (auto varExpr = std::dynamic_pointer_cast<VariableExpr>(ma->target)) {
+                out.insert(normalize(varExpr->name));
+            }
+        } else if (auto rd = std::dynamic_pointer_cast<ReadStmt>(stmt)) {
+            for (const auto& tgt : rd->targets) {
+                if (!tgt.name.empty()) out.insert(normalize(tgt.name));
+                if (auto varExpr = std::dynamic_pointer_cast<VariableExpr>(tgt.targetExpr)) {
+                    out.insert(normalize(varExpr->name));
+                }
+            }
+        } else if (auto fors = std::dynamic_pointer_cast<ForStmt>(stmt)) {
+            out.insert(normalize(fors->varName));
+            collectAssignedVariables(fors->body, out);
+        } else if (auto ifs = std::dynamic_pointer_cast<IfStmt>(stmt)) {
+            collectAssignedVariables(ifs->thenBlock, out);
+            for (const auto& eb : ifs->elseIfBlocks) collectAssignedVariables(eb.body, out);
+            collectAssignedVariables(ifs->elseBlock, out);
+        } else if (auto wh = std::dynamic_pointer_cast<WhileStmt>(stmt)) {
+            collectAssignedVariables(wh->body, out);
+        } else if (auto rep = std::dynamic_pointer_cast<RepeatStmt>(stmt)) {
+            collectAssignedVariables(rep->body, out);
+        } else if (auto sw = std::dynamic_pointer_cast<SwitchStmt>(stmt)) {
+            for (const auto& sc : sw->cases) collectAssignedVariables(sc.body, out);
+        }
+    }
+}
+
 void PythonTranspiler::transpileProceduresAndFunctions(std::ostringstream& ss) {
     for (const auto& proc : prog_.procedures) {
         transpileProcedure(proc, ss);
@@ -298,6 +336,31 @@ void PythonTranspiler::transpileProcedure(const ProcedureDecl& proc, std::ostrin
     }
     ss << "):\n";
     indentLevel_ = 1;
+
+    std::set<std::string> modifiedVars;
+    collectAssignedVariables(proc.body, modifiedVars);
+    for (const auto& vd : prog_.varDecls) {
+        for (const auto& gName : vd.names) {
+            std::string norm = normalize(gName);
+            if (modifiedVars.find(norm) != modifiedVars.end()) {
+                bool isLocal = false;
+                for (const auto& p : proc.params) {
+                    if (normalize(p.name) == norm) { isLocal = true; break; }
+                }
+                if (!isLocal) {
+                    for (const auto& lvd : proc.localVars) {
+                        for (const auto& lName : lvd.names) {
+                            if (normalize(lName) == norm) { isLocal = true; break; }
+                        }
+                        if (isLocal) break;
+                    }
+                }
+                if (!isLocal) {
+                    ss << indent() << "global " << pySafeName(gName) << "\n";
+                }
+            }
+        }
+    }
 
     std::set<std::string> initialized;
     for (const auto& p : proc.params) {
@@ -347,6 +410,31 @@ void PythonTranspiler::transpileFunction(const FunctionDecl& func, std::ostrings
     }
     ss << "):\n";
     indentLevel_ = 1;
+
+    std::set<std::string> modifiedVars;
+    collectAssignedVariables(func.body, modifiedVars);
+    for (const auto& vd : prog_.varDecls) {
+        for (const auto& gName : vd.names) {
+            std::string norm = normalize(gName);
+            if (modifiedVars.find(norm) != modifiedVars.end()) {
+                bool isLocal = false;
+                for (const auto& p : func.params) {
+                    if (normalize(p.name) == norm) { isLocal = true; break; }
+                }
+                if (!isLocal) {
+                    for (const auto& lvd : func.localVars) {
+                        for (const auto& lName : lvd.names) {
+                            if (normalize(lName) == norm) { isLocal = true; break; }
+                        }
+                        if (isLocal) break;
+                    }
+                }
+                if (!isLocal) {
+                    ss << indent() << "global " << pySafeName(gName) << "\n";
+                }
+            }
+        }
+    }
 
     std::set<std::string> initialized;
     for (const auto& p : func.params) {

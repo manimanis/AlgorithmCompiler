@@ -115,9 +115,23 @@ Program Parser::parse() {
             continue;
         }
 
-        // TDOL (Tableau des Objets Locaux) at top-level
+        // TDOL (Tableau des Objets Locaux) at top-level : relié uniquement au sous-programme qui le précède
         if (norm == "tdol") {
-            parseTDOL(prog.varDecls, prog.constDecls);
+            if (!prog.procedures.empty() || !prog.functions.empty()) {
+                bool lastIsProc = false;
+                if (!prog.procedures.empty() && !prog.functions.empty()) {
+                    lastIsProc = (prog.procedures.back().line > prog.functions.back().line);
+                } else if (!prog.procedures.empty()) {
+                    lastIsProc = true;
+                }
+                if (lastIsProc) {
+                    parseTDOL(prog.procedures.back().localVars, prog.procedures.back().constDecls);
+                } else {
+                    parseTDOL(prog.functions.back().localVars, prog.functions.back().constDecls);
+                }
+            } else {
+                error("Un tableau des objets locaux (TDOL) doit être associé à un sous-programme qui le précède");
+            }
             continue;
         }
 
@@ -584,7 +598,7 @@ ProcedureDecl Parser::parseProcedureDeclaration() {
     expectKeyword("debut");
     proc.body = parseBlock("fin");
 
-    while (peek().type == TokenType::COMMENT) next();
+    while (peek().type == TokenType::COMMENT || (peek().type == TokenType::DELIMITER && peek().value == ";")) next();
 
     // The TDOL that follows this procedure describes solely its local variables/constants
     if (normalize(peek().value) == "tdol") {
@@ -626,7 +640,7 @@ FunctionDecl Parser::parseFunctionDeclaration() {
     expectKeyword("debut");
     func.body = parseBlock("fin");
 
-    while (peek().type == TokenType::COMMENT) next();
+    while (peek().type == TokenType::COMMENT || (peek().type == TokenType::DELIMITER && peek().value == ";")) next();
 
     // The TDOL that follows this function describes solely its local variables/constants
     if (normalize(peek().value) == "tdol") {
@@ -759,7 +773,7 @@ void Parser::parseTDO(Program& prog) {
     else expectKeyword("tdo");
 
     // Skip empty lines / comments and optional header line: 'Objet : Type/Nature'
-    while (peek().type == TokenType::COMMENT) next();
+    while (peek().type == TokenType::COMMENT || (peek().type == TokenType::DELIMITER && peek().value == ";")) next();
     if (normalize(peek().value) == "objet") {
         int objLine = peek().line;
         while (peek().type != TokenType::END_OF_FILE && peek().line == objLine) {
@@ -818,7 +832,7 @@ void Parser::parseTDO(Program& prog) {
 
 void Parser::parseTDOL(std::vector<VarDecl>& localVars, std::vector<ConstDecl>& localConsts) {
     expectKeyword("tdol");
-    while (peek().type == TokenType::COMMENT) next();
+    while (peek().type == TokenType::COMMENT || (peek().type == TokenType::DELIMITER && peek().value == ";")) next();
     if (normalize(peek().value) == "objet") {
         int objLine = peek().line;
         while (peek().type != TokenType::END_OF_FILE && peek().line == objLine) {

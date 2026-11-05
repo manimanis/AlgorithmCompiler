@@ -201,6 +201,8 @@ void SemanticAnalyzer::reportWarning(int line, int col, const std::string& objec
     diagnostics_.push_back(diag);
 }
 
+static void collectModifiedVars(const std::vector<std::shared_ptr<Stmt>>& stmts, std::set<std::string>& out);
+
 std::vector<SemanticDiagnostic> SemanticAnalyzer::analyze(const Program& prog) {
     diagnostics_.clear();
     scopes_.clear();
@@ -208,9 +210,18 @@ std::vector<SemanticDiagnostic> SemanticAnalyzer::analyze(const Program& prog) {
     procMap_.clear();
     funcMap_.clear();
     assignedVars_.clear();
+    globallyAssignedVars_.clear();
     warnedUnassignedVars_.clear();
     constNames_.clear();
     enumValueToType_.clear();
+
+    collectModifiedVars(prog.mainBody, globallyAssignedVars_);
+    for (const auto& proc : prog.procedures) {
+        collectModifiedVars(proc.body, globallyAssignedVars_);
+    }
+    for (const auto& func : prog.functions) {
+        collectModifiedVars(func.body, globallyAssignedVars_);
+    }
 
     pushScope(); // Global scope
 
@@ -292,6 +303,7 @@ void SemanticAnalyzer::collectGlobalDeclarations(const Program& prog) {
 
 void SemanticAnalyzer::checkProcedure(const ProcedureDecl& proc) {
     pushScope();
+    auto savedAssigned = assignedVars_;
     for (const auto& cd : proc.constDecls) {
         checkExpr(cd.valueExpr);
         declareSymbol(cd.name, "constante", TypeSpec(), SymbolKind::Constant, cd.line);
@@ -329,10 +341,12 @@ void SemanticAnalyzer::checkProcedure(const ProcedureDecl& proc) {
 
     checkBlock(proc.body);
     popScope();
+    assignedVars_ = std::move(savedAssigned);
 }
 
 void SemanticAnalyzer::checkFunction(const FunctionDecl& func) {
     pushScope();
+    auto savedAssigned = assignedVars_;
     currentFunctionName_ = func.name;
     currentFunctionReturnType_ = func.returnType;
     hasReturnInCurrentFunction_ = false;
@@ -383,6 +397,7 @@ void SemanticAnalyzer::checkFunction(const FunctionDecl& func) {
     currentFunctionReturnType_.clear();
     hasReturnInCurrentFunction_ = false;
     popScope();
+    assignedVars_ = std::move(savedAssigned);
 }
 
 void SemanticAnalyzer::checkBlock(const std::vector<std::shared_ptr<Stmt>>& stmts) {
@@ -997,8 +1012,17 @@ std::string SemanticAnalyzer::checkExpr(const std::shared_ptr<Expr>& expr) {
         }
         if (sym->kind == SymbolKind::Variable) {
             std::string vNorm = normalize(v->name);
-            if (assignedVars_.find(vNorm) == assignedVars_.end() &&
-                warnedUnassignedVars_.find(vNorm) == warnedUnassignedVars_.end()) {
+            bool isGlobal = (!scopes_.empty() && scopes_[0].find(vNorm) != scopes_[0].end());
+            bool isInsideSub = (scopes_.size() > 1);
+
+            bool isAssigned = (assignedVars_.find(vNorm) != assignedVars_.end());
+            if (isGlobal && isInsideSub) {
+                if (globallyAssignedVars_.find(vNorm) != globallyAssignedVars_.end()) {
+                    isAssigned = true;
+                }
+            }
+
+            if (!isAssigned && warnedUnassignedVars_.find(vNorm) == warnedUnassignedVars_.end()) {
                 warnedUnassignedVars_.insert(vNorm);
                 reportWarning(v->line, -1, v->name,
                               "La variable '" + v->name + "' est utilisée sans avoir été préalablement initialisée.");

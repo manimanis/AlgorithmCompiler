@@ -11,6 +11,9 @@ struct InterpreterOptions {
     uint64_t maxIterations = 1000000;
     uint64_t timeoutMs = 50000;
     uint32_t seed = 0;
+
+    static InterpreterOptions fromSource(const std::string& source);
+    static InterpreterOptions fromSource(const std::string& source, const InterpreterOptions& base);
 };
 
 struct AlgoFile {

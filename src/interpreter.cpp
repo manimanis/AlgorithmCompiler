@@ -1,8 +1,71 @@
 #include "../include/interpreter.hpp"
 #include <regex>
 #include <filesystem>
+#include <sstream>
 
 namespace algo {
+
+InterpreterOptions InterpreterOptions::fromSource(const std::string& source) {
+    return fromSource(source, InterpreterOptions{});
+}
+
+InterpreterOptions InterpreterOptions::fromSource(const std::string& source, const InterpreterOptions& base) {
+    InterpreterOptions opts = base;
+    std::istringstream iss(source);
+    std::string line;
+    while (std::getline(iss, line)) {
+        size_t start = line.find_first_not_of(" \t\r\n");
+        if (start == std::string::npos) continue;
+        std::string trimmed = line.substr(start);
+
+        if (trimmed.rfind("//", 0) != 0) {
+            // Arrêter la lecture dès la première ligne qui n'est pas un commentaire
+            break;
+        }
+
+        std::string comment = trimmed.substr(2);
+
+        auto findDirective = [&](const char* const* keys, auto& target) {
+            for (int i = 0; keys[i] != nullptr; ++i) {
+                std::string k = keys[i];
+                size_t p = comment.find(k);
+                if (p != std::string::npos) {
+                    size_t colon = comment.find(':', p + k.size());
+                    if (colon != std::string::npos) {
+                        std::string valStr = comment.substr(colon + 1);
+                        size_t vStart = valStr.find_first_not_of(" \t\r\n");
+                        if (vStart != std::string::npos) {
+                            try {
+                                target = std::stoull(valStr.substr(vStart));
+                            } catch (...) {}
+                        }
+                    }
+                    return;
+                }
+            }
+        };
+
+        static const char* const maxIterKeys[] = {"@max-iter", "@max_iter", "@max-iterations", "@max_iterations", nullptr};
+        static const char* const timeoutKeys[] = {"@timeout", "@timeout-ms", "@timeout_ms", nullptr};
+        findDirective(maxIterKeys, opts.maxIterations);
+        findDirective(timeoutKeys, opts.timeoutMs);
+
+        size_t sp = comment.find("@seed");
+        if (sp != std::string::npos) {
+            size_t colon = comment.find(':', sp + 5);
+            if (colon != std::string::npos) {
+                std::string valStr = comment.substr(colon + 1);
+                size_t vStart = valStr.find_first_not_of(" \t\r\n");
+                if (vStart != std::string::npos) {
+                    try {
+                        opts.seed = (uint32_t)std::stoul(valStr.substr(vStart));
+                    } catch (...) {}
+                }
+            }
+        }
+    }
+    return opts;
+}
 
 Interpreter::Interpreter(InterpreterOptions options)
     : options_(options), globalEnv_(std::make_shared<Environment>()), rng_(options.seed) {}

@@ -109,6 +109,9 @@ int main(int argc, char* argv[]) {
 
     std::string filePath;
     InterpreterOptions options;
+    bool hasCliMaxIter = false;
+    bool hasCliTimeout = false;
+    bool hasCliSeed = false;
     bool toPython = false;
     std::string pyOutputPath;
     bool checkOnly = false;
@@ -139,10 +142,13 @@ int main(int argc, char* argv[]) {
             dumpBytecode = true;
         } else if (arg == "--max-iter" && i + 1 < argc) {
             options.maxIterations = std::stoull(argv[++i]);
+            hasCliMaxIter = true;
         } else if ((arg == "--timeout" || arg == "--timeout-ms") && i + 1 < argc) {
             options.timeoutMs = std::stoull(argv[++i]);
+            hasCliTimeout = true;
         } else if (arg == "--seed" && i + 1 < argc) {
             options.seed = (uint32_t)std::stoul(argv[++i]);
+            hasCliSeed = true;
         } else if (arg == "--to-python" || arg == "--py") {
             toPython = true;
             if (i + 1 < argc && argv[i + 1][0] != '-') {
@@ -165,6 +171,12 @@ int main(int argc, char* argv[]) {
 
     try {
         std::string source = readFile(filePath);
+
+        InterpreterOptions fileOpts = InterpreterOptions::fromSource(source);
+        if (!hasCliMaxIter) options.maxIterations = fileOpts.maxIterations;
+        if (!hasCliTimeout) options.timeoutMs = fileOpts.timeoutMs;
+        if (!hasCliSeed) options.seed = fileOpts.seed;
+
         Lexer lexer(source);
         auto tokens = lexer.tokenize();
 
