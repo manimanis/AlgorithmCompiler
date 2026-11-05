@@ -2,7 +2,7 @@
 
 **AlgorithmCompiler** est un interpréteur, vérificateur sémantique statique et transpilateur haute performance pour le pseudo-code algorithmique standard utilisé dans l'enseignement secondaire et supérieur en Tunisie (programmes du Baccalauréat tunisien : Mathématiques, Sciences Expérimentales, Sciences de l'Informatique, Technique et Économie-Gestion).
 
-Le projet est développé en **C++20 moderne** et dispose d'une suite complète de **187 tests unitaires automatisés validés à 100%**.
+Le projet est développé en **C++20 moderne** et dispose d'une suite complète de **214 tests unitaires automatisés validés à 100%**, d'un **harnais de fuzzing automatisé** et d'un pipeline de **CI/CD multiplateforme** (Ubuntu, Windows, macOS).
 
 ---
 
@@ -59,11 +59,14 @@ AlgorithmCompiler/
 │   ├── interpreter.cpp         # Implémentation de l'interpréteur par Visiteur
 │   ├── parser.cpp              # Implémentation du parseur avec allocation d'arène
 │   ├── lexer.cpp               # Implémentation du lexer
-│   └── test_runner.cpp         # Runner autonome des 187 tests unitaires
+│   ├── test_runner.cpp         # Runner autonome des 214 tests unitaires
+│   └── fuzz_runner.cpp         # Harnais de fuzzing automatisé (mutations et robustesse)
+├── .github/workflows/
+│   └── ci.yml                  # Pipeline CI/CD GitHub Actions multi-OS (Linux, macOS, Windows)
 ├── Makefile                    # Makefile universel multiplateforme (Linux, macOS, Windows)
 ├── build.sh                    # Script shell de compilation directe pour Linux / macOS
 ├── build.bat                   # Script batch de compilation pour Windows
-├── tests/                      # 187 tests couvrant toutes les fonctionnalités
+├── tests/                      # 214 tests couvrant toutes les fonctionnalités et optimisations
 └── scripts/                    # Scripts Node.js pour compilation et validation
 ```
 
@@ -470,11 +473,11 @@ Enregistrer le code Python directement dans un fichier :
 
 ---
 
-## 🧪 Suite de Tests Automatisée
+## 🧪 Suite de Tests Automatisée, Fuzzing & CI/CD
 
-AlgorithmCompiler dispose d'une suite de **187 tests unitaires** couvrant l'intégralité des fonctionnalités du langage.
+AlgorithmCompiler dispose d'une suite de **214 tests unitaires validés à 100%**, d'un **harnais de fuzzing automatisé** et d'un pipeline de **CI/CD GitHub Actions**.
 
-### Lancer tous les tests en C++
+### Lancer tous les tests unitaires en C++
 Sous Linux / macOS :
 ```bash
 make test
@@ -487,16 +490,39 @@ Sous Windows :
 run_tests.exe
 ```
 
-Résultats attendus :
+Résultats obtenus :
 ```text
 ========================================================
                   RÉSULTATS DES TESTS                   
 ========================================================
- Total tests : 187
- Réussis     : 187
+ Total tests : 214
+ Réussis     : 214
  Échoués     : 0 (100% SUCCÈS)
+ Durée       : ~1600 ms
 ========================================================
 ```
+
+### Lancer le Harnais de Fuzzing (Robustesse logicielle)
+Injecte 1 000 cas de code aléatoirement muté (tokens corrompus, syntaxe tronquée, limites de calcul) pour prouver l'absence totale de crash :
+```bash
+# Unix
+make fuzz
+# ou directement (Windows)
+fuzz_runner.exe 1000
+```
+
+### Benchmarks de Performance VM
+Mesure le temps d'exécution sur les algorithmes intensifs (tri sélection, crible d'Ératosthène, boucles imbriquées) :
+```bash
+make bench
+```
+
+### Pipeline CI/CD GitHub Actions
+Le workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) compile et teste le projet automatiquement à chaque commit et pull request sur :
+- **Ubuntu Linux** (GCC 13/14)
+- **Windows** (MinGW UCRT64)
+- **macOS** (Apple Clang)
+Chaque étape valide la compilation, les 214 tests unitaires, le fuzzing, les benchmarks et la transpilation Python.
 
 ### Lancer les tests du transpilateur Python (facultatif)
 Nécessite Node.js et Python 3 :

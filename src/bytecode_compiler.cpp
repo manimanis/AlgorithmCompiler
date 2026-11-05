@@ -113,9 +113,168 @@ void BytecodeCompiler::addLocal(const std::string& name, bool byRef) {
     locals_.push_back(info);
 }
 
+static bool tryEvalConst(const std::shared_ptr<Expr>& expr, Value& out) {
+    if (!expr) return false;
+    if (auto num = std::dynamic_pointer_cast<NumberExpr>(expr)) {
+        out = Value(num->value);
+        return true;
+    }
+    if (auto realE = std::dynamic_pointer_cast<RealExpr>(expr)) {
+        out = Value(realE->value);
+        return true;
+    }
+    if (auto str = std::dynamic_pointer_cast<StringExpr>(expr)) {
+        out = Value(str->value);
+        return true;
+    }
+    if (auto b = std::dynamic_pointer_cast<BoolExpr>(expr)) {
+        out = Value(b->value);
+        return true;
+    }
+    if (auto un = std::dynamic_pointer_cast<UnaryExpr>(expr)) {
+        Value sub;
+        if (!tryEvalConst(un->operand, sub)) return false;
+        if (un->op == "-") {
+            if (sub.isInt()) out = Value(-sub.asInt());
+            else out = Value(-sub.asReal());
+            return true;
+        }
+        if (un->op == "Non" || normalize(un->op) == "non") {
+            out = Value(!sub.asBool());
+            return true;
+        }
+        return false;
+    }
+    if (auto bin = std::dynamic_pointer_cast<BinaryExpr>(expr)) {
+        Value l, r;
+        if (!tryEvalConst(bin->left, l) || !tryEvalConst(bin->right, r)) return false;
+        const std::string& op = bin->op;
+        try {
+            if (op == "+") { out = l.add(r); return true; }
+            if (op == "-") { out = l.sub(r); return true; }
+            if (op == "*") { out = l.mul(r); return true; }
+            if (op == "/" && r.asReal() != 0.0) { out = l.divReal(r); return true; }
+            if (op == "div" && r.asInt() != 0) { out = l.divInt(r); return true; }
+            if ((op == "mod" || op == "%") && r.asInt() != 0) { out = l.mod(r); return true; }
+            if (op == "=") { out = Value(l.equals(r)); return true; }
+            if (op == "≠" || op == "!=") { out = Value(l.notEquals(r)); return true; }
+            if (op == "<") { out = Value(l.lessThan(r)); return true; }
+            if (op == "<=" || op == "≤") { out = Value(l.lessOrEqual(r)); return true; }
+            if (op == ">") { out = Value(l.greaterThan(r)); return true; }
+            if (op == ">=" || op == "≥") { out = Value(l.greaterOrEqual(r)); return true; }
+            if (op == "Et") { out = Value(l.asBool() && r.asBool()); return true; }
+            if (op == "Ou") { out = Value(l.asBool() || r.asBool()); return true; }
+        } catch (...) {
+            return false;
+        }
+        return false;
+    }
+    return false;
+}
+
+static void optimizePeephole(Chunk& chunk) {
+    if (chunk.code.empty()) return;
+
+    size_t ip = 0;
+    while (ip < chunk.code.size()) {
+        OpCode op = static_cast<OpCode>(chunk.code[ip]);
+        if (op == OpCode::OP_JUMP || op == OpCode::OP_JUMP_IF_FALSE || op == OpCode::OP_JUMP_IF_TRUE ||
+            op == OpCode::OP_JUMP_IF_FALSE_PEEK || op == OpCode::OP_JUMP_IF_TRUE_PEEK) {
+            if (ip + 5 <= chunk.code.size()) {
+                size_t operandOffset = ip + 1;
+                int32_t jmp = chunk.readInt32(operandOffset);
+                size_t target = ip + 5 + jmp;
+
+                // Si c'est un saut inconditionnel vers l'instruction suivante, on le NOP
+                if (op == OpCode::OP_JUMP && jmp == 0) {
+                    for (size_t k = 0; k < 5; ++k) chunk.code[ip + k] = static_cast<uint8_t>(OpCode::OP_NOP);
+                } else if (target < chunk.code.size()) {
+                    // Jump to jump chaining
+                    int chainCount = 0;
+                    while (target + 5 <= chunk.code.size() &&
+                           static_cast<OpCode>(chunk.code[target]) == OpCode::OP_JUMP &&
+                           chainCount < 10) {
+                        size_t nextOpOffset = target + 1;
+                        int32_t nextJmp = chunk.readInt32(nextOpOffset);
+                        size_t nextTarget = target + 5 + nextJmp;
+                        if (nextTarget >= chunk.code.size()) break;
+                        target = nextTarget;
+                        chainCount++;
+                    }
+                    if (chainCount > 0) {
+                        int32_t newJmp = static_cast<int32_t>(target) - static_cast<int32_t>(ip + 5);
+                        chunk.patchInt32(ip + 1, newJmp);
+                    }
+                }
+            }
+            ip += 5;
+        } else {
+            // Avancer selon la taille de l'instruction
+            switch (op) {
+                case OpCode::OP_CONST:
+                case OpCode::OP_GET_GLOBAL:
+                case OpCode::OP_SET_GLOBAL:
+                case OpCode::OP_POP_GLOBAL:
+                case OpCode::OP_GET_LOCAL:
+                case OpCode::OP_SET_LOCAL:
+                case OpCode::OP_POP_LOCAL:
+                case OpCode::OP_GET_REF:
+                case OpCode::OP_SET_REF:
+                case OpCode::OP_POP_REF:
+                case OpCode::OP_PUSH_REF_GLOBAL:
+                case OpCode::OP_PUSH_REF_LOCAL:
+                case OpCode::OP_PUSH_REF_REF:
+                case OpCode::OP_REF_MEMBER:
+                case OpCode::OP_RECORD_GET:
+                case OpCode::OP_RECORD_SET:
+                case OpCode::OP_READ_VAR:
+                case OpCode::OP_READ_LOCAL:
+                case OpCode::OP_READ_REF:
+                case OpCode::OP_READ_ARRAY:
+                case OpCode::OP_READ_ARRAY2D:
+                case OpCode::OP_READ_FILE:
+                case OpCode::OP_LOOP:
+                case OpCode::OP_MAKE_SET:
+                case OpCode::OP_ARRAY_GET_GLOBAL:
+                case OpCode::OP_ARRAY_SET_GLOBAL:
+                case OpCode::OP_ARRAY_GET_LOCAL:
+                case OpCode::OP_ARRAY_SET_LOCAL:
+                case OpCode::OP_ARRAY_GET_REF:
+                case OpCode::OP_ARRAY_SET_REF:
+                    ip += 5;
+                    break;
+                case OpCode::OP_READ_RECORD:
+                    ip += 9;
+                    break;
+                case OpCode::OP_CALL:
+                case OpCode::OP_CALL_BUILTIN:
+                    ip += 9;
+                    break;
+                case OpCode::OP_WRITE:
+                    ip += 14;
+                    break;
+                default:
+                    ip += 1;
+                    break;
+            }
+        }
+    }
+}
+
 void BytecodeCompiler::compileExpr(const std::shared_ptr<Expr>& expr) {
     if (!expr) return;
     currentLine_ = expr->line > 0 ? expr->line : currentLine_;
+
+    // Constant Folding
+    if (std::dynamic_pointer_cast<BinaryExpr>(expr) || std::dynamic_pointer_cast<UnaryExpr>(expr)) {
+        Value constVal;
+        if (tryEvalConst(expr, constVal)) {
+            emitOp(OpCode::OP_CONST);
+            emitUint32(addConstant(constVal));
+            return;
+        }
+    }
+
     expr->accept(*this);
 }
 
@@ -198,6 +357,7 @@ BytecodeProgram BytecodeCompiler::compile(const Program& prog) {
         }
         compileBlock(proc.body);
         emitOp(OpCode::OP_RETURN_VOID);
+        optimizePeephole(bf.chunk);
 
         result.subroutines[normalize(proc.name)] = std::move(bf);
     }
@@ -245,6 +405,7 @@ BytecodeProgram BytecodeCompiler::compile(const Program& prog) {
         emitOp(OpCode::OP_CONST);
         emitUint32(addConstant(Value()));
         emitOp(OpCode::OP_RETURN);
+        optimizePeephole(bf.chunk);
 
         result.subroutines[normalize(func.name)] = std::move(bf);
     }
@@ -263,6 +424,7 @@ BytecodeProgram BytecodeCompiler::compile(const Program& prog) {
 
     compileBlock(prog.mainBody);
     emitOp(OpCode::OP_HALT);
+    optimizePeephole(result.mainChunk);
 
     return result;
 }
@@ -286,6 +448,24 @@ void BytecodeCompiler::visit(AssignStmt& node) {
 }
 
 void BytecodeCompiler::visit(ArrayAssignStmt& node) {
+    if (!node.targetExpr && !node.index2) {
+        compileExpr(node.index);
+        compileExpr(node.value);
+        int localIdx = isInsideSubroutine_ ? findLocal(node.target) : -1;
+        if (localIdx != -1) {
+            if (locals_[localIdx].byRef) {
+                emitOp(OpCode::OP_ARRAY_SET_REF);
+            } else {
+                emitOp(OpCode::OP_ARRAY_SET_LOCAL);
+            }
+            emitUint32(static_cast<uint32_t>(localIdx));
+        } else {
+            emitOp(OpCode::OP_ARRAY_SET_GLOBAL);
+            emitUint32(addName(node.target));
+        }
+        return;
+    }
+
     if (node.targetExpr) {
         auto arrExpr = std::make_shared<ArrayAccessExpr>(node.targetExpr, node.index, node.index2, node.line);
         if (compileRefExpr(arrExpr)) {
@@ -784,6 +964,28 @@ void BytecodeCompiler::visit(VariableExpr& node) {
 }
 
 void BytecodeCompiler::visit(ArrayAccessExpr& node) {
+    std::string arrName;
+    if (!node.target && !node.name.empty()) {
+        arrName = node.name;
+    } else if (node.target) {
+        if (auto vExpr = std::dynamic_pointer_cast<VariableExpr>(node.target)) {
+            arrName = vExpr->name;
+        }
+    }
+
+    if (!arrName.empty() && !node.index2) {
+        compileExpr(node.index);
+        int localIdx = isInsideSubroutine_ ? findLocal(arrName) : -1;
+        if (localIdx != -1) {
+            emitOp(locals_[localIdx].byRef ? OpCode::OP_ARRAY_GET_REF : OpCode::OP_ARRAY_GET_LOCAL);
+            emitUint32(static_cast<uint32_t>(localIdx));
+        } else {
+            emitOp(OpCode::OP_ARRAY_GET_GLOBAL);
+            emitUint32(addName(arrName));
+        }
+        return;
+    }
+
     if (node.target) {
         compileExpr(node.target);
     } else {

@@ -74,6 +74,12 @@ enum class OpCode : uint8_t {
     // Data structures
     OP_ARRAY_GET,           // [target, idx] -> arr[idx]
     OP_ARRAY_SET,           // [target, idx, val] -> arr[idx] = val
+    OP_ARRAY_GET_GLOBAL,    // [uint32 nameIdx] -> globals[name][idx]
+    OP_ARRAY_SET_GLOBAL,    // [uint32 nameIdx] -> globals[name][idx] = val
+    OP_ARRAY_GET_LOCAL,     // [uint32 slot] -> stack[base + slot][idx]
+    OP_ARRAY_SET_LOCAL,     // [uint32 slot] -> stack[base + slot][idx] = val
+    OP_ARRAY_GET_REF,       // [uint32 slot] -> ref[slot][idx]
+    OP_ARRAY_SET_REF,       // [uint32 slot] -> ref[slot][idx] = val
     OP_ARRAY2D_GET,         // [target, r, c] -> arr[r][c]
     OP_ARRAY2D_SET,         // [target, r, c, val] -> arr[r][c] = val
     OP_RECORD_GET,          // [uint32 fieldNameIdx] -> rec[field]

@@ -62,31 +62,37 @@ LDFLAGS ?= $(STATIC_FLAGS) -s
 SRCS_COMMON = src/lexer.cpp src/value.cpp src/parser.cpp src/interpreter.cpp src/bytecode.cpp src/bytecode_compiler.cpp src/vm.cpp src/semantic_analyzer.cpp
 SRCS_MAIN   = src/python_transpiler.cpp src/main.cpp
 SRCS_TEST   = src/test_runner.cpp
+SRCS_FUZZ   = src/fuzz_runner.cpp
 
 OBJS_COMMON = $(SRCS_COMMON:.cpp=.o)
 OBJS_MAIN   = $(SRCS_MAIN:.cpp=.o)
 OBJS_TEST   = $(SRCS_TEST:.cpp=.o)
+OBJS_FUZZ   = $(SRCS_FUZZ:.cpp=.o)
 
 TARGET      := algo$(BIN_EXT)
 TEST_TARGET := run_tests$(BIN_EXT)
+FUZZ_TARGET := fuzz_runner$(BIN_EXT)
 
 # Nettoyage multi-plateforme
 ifeq ($(HOST_OS),windows)
-    CLEAN_CMD := del /Q /F src\*.o *.exe algo run_tests 2>nul || exit 0
+    CLEAN_CMD := del /Q /F src\*.o *.exe algo run_tests fuzz_runner 2>nul || exit 0
 else
-    CLEAN_CMD := rm -f src/*.o algo run_tests algo.exe run_tests.exe
+    CLEAN_CMD := rm -f src/*.o algo run_tests fuzz_runner algo.exe run_tests.exe fuzz_runner.exe
 endif
 
 # ==============================================================================
 # Règles de compilation
 # ==============================================================================
 
-all: $(TARGET) $(TEST_TARGET)
+all: $(TARGET) $(TEST_TARGET) $(FUZZ_TARGET)
 
 $(TARGET): $(OBJS_COMMON) $(OBJS_MAIN)
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
 
 $(TEST_TARGET): $(OBJS_COMMON) $(OBJS_TEST)
+	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
+
+$(FUZZ_TARGET): $(OBJS_COMMON) $(OBJS_FUZZ)
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
 
 %.o: %.cpp
@@ -110,6 +116,15 @@ clean:
 
 test: $(TEST_TARGET)
 	./$(TEST_TARGET)
+
+fuzz: $(FUZZ_TARGET)
+	./$(FUZZ_TARGET) 1000
+
+bench: $(TARGET)
+	./$(TARGET) benchmarks/01_heavy_loop.alg --vm --bench
+	./$(TARGET) benchmarks/02_fibonacci_deep.alg --vm --bench
+	./$(TARGET) benchmarks/03_tri_selection.alg --vm --bench
+	./$(TARGET) benchmarks/05_crible_premiers.alg --vm --bench
 
 help:
 	@echo ==============================================================================

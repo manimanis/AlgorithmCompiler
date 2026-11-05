@@ -1,0 +1,128 @@
+name: AlgorithmCompiler CI/CD & Robustesse
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    name: Build & Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            cxx: g++
+            artifact_name: algo-linux-x86_64
+            bin_ext: ""
+          - os: macos-latest
+            cxx: clang++
+            artifact_name: algo-macos-x86_64
+            bin_ext: ""
+          - os: windows-latest
+            cxx: g++
+            artifact_name: algo-windows-x86_64
+            bin_ext: ".exe"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js (Transpiler validation)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Configuration de l'environnement Linux
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++ make
+
+      # Configuration de l'environnement Windows
+      - name: Setup MSYS2 / MinGW UCRT64 (Windows)
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-make
+
+      # Compilation sur Linux / macOS
+      - name: Build project (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          make CXX=${{ matrix.cxx }} CXXFLAGS="-std=c++20 -O2 -Wall -Wextra -Iinclude" all
+
+      # Compilation sur Windows
+      - name: Build project (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          make TARGET_OS=windows CXXFLAGS="-std=c++20 -O2 -Wall -Wextra -Iinclude" all
+
+      # Exécution de la suite de 214 tests unitaires
+      - name: Run Unit Tests (214 tests)
+        if: runner.os != 'Windows'
+        run: |
+          ./run_tests
+
+      - name: Run Unit Tests (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          ./run_tests.exe
+
+      # Exécution du Fuzzing (1 000 itérations de mutations agressives)
+      - name: Run Fuzzing Harness (1000 iterations)
+        if: runner.os != 'Windows'
+        run: |
+          ./fuzz_runner 1000
+
+      - name: Run Fuzzing Harness (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          ./fuzz_runner.exe 1000
+
+      # Benchmarks de performance VM
+      - name: Run VM Performance Benchmarks
+        if: runner.os != 'Windows'
+        run: |
+          make bench
+
+      - name: Run VM Performance Benchmarks (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          make bench
+
+      # Validation de la suite du transpilateur Python
+      - name: Validate Python Transpiler
+        if: runner.os != 'Windows'
+        run: |
+          node scripts/test_transpiler.js
+
+      - name: Validate Python Transpiler (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          node scripts/test_transpiler.js
+
+      # Upload des artefacts binaires
+      - name: Upload Binary Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: algo${{ matrix.bin_ext }}

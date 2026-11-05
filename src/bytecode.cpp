@@ -51,6 +51,12 @@ const char* opCodeName(OpCode op) {
         case OpCode::OP_LOOP: return "OP_LOOP";
         case OpCode::OP_ARRAY_GET: return "OP_ARRAY_GET";
         case OpCode::OP_ARRAY_SET: return "OP_ARRAY_SET";
+        case OpCode::OP_ARRAY_GET_GLOBAL: return "OP_ARRAY_GET_GLOBAL";
+        case OpCode::OP_ARRAY_SET_GLOBAL: return "OP_ARRAY_SET_GLOBAL";
+        case OpCode::OP_ARRAY_GET_LOCAL: return "OP_ARRAY_GET_LOCAL";
+        case OpCode::OP_ARRAY_SET_LOCAL: return "OP_ARRAY_SET_LOCAL";
+        case OpCode::OP_ARRAY_GET_REF: return "OP_ARRAY_GET_REF";
+        case OpCode::OP_ARRAY_SET_REF: return "OP_ARRAY_SET_REF";
         case OpCode::OP_ARRAY2D_GET: return "OP_ARRAY2D_GET";
         case OpCode::OP_ARRAY2D_SET: return "OP_ARRAY2D_SET";
         case OpCode::OP_RECORD_GET: return "OP_RECORD_GET";
@@ -177,7 +183,9 @@ size_t Chunk::disassembleInstruction(size_t offset) const {
         case OpCode::OP_REF_MEMBER:
         case OpCode::OP_READ_VAR:
         case OpCode::OP_READ_ARRAY:
-        case OpCode::OP_READ_ARRAY2D: {
+        case OpCode::OP_READ_ARRAY2D:
+        case OpCode::OP_ARRAY_GET_GLOBAL:
+        case OpCode::OP_ARRAY_SET_GLOBAL: {
             size_t tempIp = nextOffset;
             uint32_t idx = readUint32(tempIp);
             nextOffset = tempIp;
@@ -193,7 +201,11 @@ size_t Chunk::disassembleInstruction(size_t offset) const {
         case OpCode::OP_PUSH_REF_LOCAL:
         case OpCode::OP_PUSH_REF_REF:
         case OpCode::OP_READ_LOCAL:
-        case OpCode::OP_READ_REF: {
+        case OpCode::OP_READ_REF:
+        case OpCode::OP_ARRAY_GET_LOCAL:
+        case OpCode::OP_ARRAY_SET_LOCAL:
+        case OpCode::OP_ARRAY_GET_REF:
+        case OpCode::OP_ARRAY_SET_REF: {
             size_t tempIp = nextOffset;
             uint32_t slot = readUint32(tempIp);
             nextOffset = tempIp;

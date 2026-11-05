@@ -29,5 +29,12 @@ if %ERRORLEVEL% NEQ 0 (
     exit /b 1
 )
 
+echo Compilation du fuzz runner...
+%CXX% -std=c++20 -O2 -s -static -Iinclude src/lexer.cpp src/value.cpp src/parser.cpp src/interpreter.cpp src/bytecode.cpp src/bytecode_compiler.cpp src/vm.cpp src/semantic_analyzer.cpp src/fuzz_runner.cpp -o fuzz_runner.exe
+if %ERRORLEVEL% NEQ 0 (
+    echo Erreur de compilation de fuzz_runner.exe
+    exit /b 1
+)
+
 echo Compilation terminee avec succes!
 endlocal

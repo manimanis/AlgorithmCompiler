@@ -890,6 +890,22 @@ void VM::run(const BytecodeProgram& prog) {
             }
 
             case OpCode::OP_ADD: {
+                if (stack_.size() >= 2) {
+                    Value& b = stack_.back();
+                    Value& a = stack_[stack_.size() - 2];
+                    if (a.type == ValueType::Int && b.type == ValueType::Int) {
+                        a.intVal += b.intVal;
+                        a.realVal = static_cast<double>(a.intVal);
+                        stack_.pop_back();
+                        break;
+                    }
+                    if (a.type == ValueType::Real && b.type == ValueType::Real) {
+                        a.realVal += b.realVal;
+                        a.intVal = static_cast<int64_t>(a.realVal);
+                        stack_.pop_back();
+                        break;
+                    }
+                }
                 Value b = pop();
                 Value a = pop();
                 push(a.add(b));
@@ -897,6 +913,22 @@ void VM::run(const BytecodeProgram& prog) {
             }
 
             case OpCode::OP_SUB: {
+                if (stack_.size() >= 2) {
+                    Value& b = stack_.back();
+                    Value& a = stack_[stack_.size() - 2];
+                    if (a.type == ValueType::Int && b.type == ValueType::Int) {
+                        a.intVal -= b.intVal;
+                        a.realVal = static_cast<double>(a.intVal);
+                        stack_.pop_back();
+                        break;
+                    }
+                    if (a.type == ValueType::Real && b.type == ValueType::Real) {
+                        a.realVal -= b.realVal;
+                        a.intVal = static_cast<int64_t>(a.realVal);
+                        stack_.pop_back();
+                        break;
+                    }
+                }
                 Value b = pop();
                 Value a = pop();
                 push(a.sub(b));
@@ -904,6 +936,22 @@ void VM::run(const BytecodeProgram& prog) {
             }
 
             case OpCode::OP_MUL: {
+                if (stack_.size() >= 2) {
+                    Value& b = stack_.back();
+                    Value& a = stack_[stack_.size() - 2];
+                    if (a.type == ValueType::Int && b.type == ValueType::Int) {
+                        a.intVal *= b.intVal;
+                        a.realVal = static_cast<double>(a.intVal);
+                        stack_.pop_back();
+                        break;
+                    }
+                    if (a.type == ValueType::Real && b.type == ValueType::Real) {
+                        a.realVal *= b.realVal;
+                        a.intVal = static_cast<int64_t>(a.realVal);
+                        stack_.pop_back();
+                        break;
+                    }
+                }
                 Value b = pop();
                 Value a = pop();
                 push(a.mul(b));
@@ -930,6 +978,18 @@ void VM::run(const BytecodeProgram& prog) {
             }
 
             case OpCode::OP_DIV_INT: {
+                if (stack_.size() >= 2) {
+                    Value& b = stack_.back();
+                    Value& a = stack_[stack_.size() - 2];
+                    if (a.type == ValueType::Int && b.type == ValueType::Int) {
+                        if (b.intVal == 0) throw AlgoError("Division entière par zéro", curLine);
+                        double res = std::floor(static_cast<double>(a.intVal) / static_cast<double>(b.intVal));
+                        a.intVal = static_cast<int64_t>(res);
+                        a.realVal = static_cast<double>(a.intVal);
+                        stack_.pop_back();
+                        break;
+                    }
+                }
                 Value b = pop();
                 Value a = pop();
                 push(a.divInt(b));
@@ -937,6 +997,17 @@ void VM::run(const BytecodeProgram& prog) {
             }
 
             case OpCode::OP_MOD: {
+                if (stack_.size() >= 2) {
+                    Value& b = stack_.back();
+                    Value& a = stack_[stack_.size() - 2];
+                    if (a.type == ValueType::Int && b.type == ValueType::Int) {
+                        if (b.intVal == 0) throw AlgoError("Modulo par zéro", curLine);
+                        a.intVal %= b.intVal;
+                        a.realVal = static_cast<double>(a.intVal);
+                        stack_.pop_back();
+                        break;
+                    }
+                }
                 Value b = pop();
                 Value a = pop();
                 push(a.mod(b));
@@ -944,6 +1015,11 @@ void VM::run(const BytecodeProgram& prog) {
             }
 
             case OpCode::OP_NEG: {
+                if (!stack_.empty() && stack_.back().type == ValueType::Int) {
+                    stack_.back().intVal = -stack_.back().intVal;
+                    stack_.back().realVal = static_cast<double>(stack_.back().intVal);
+                    break;
+                }
                 Value val = pop();
                 if (val.isInt()) push(Value(-val.asInt()));
                 else push(Value(-val.asReal()));
@@ -951,6 +1027,11 @@ void VM::run(const BytecodeProgram& prog) {
             }
 
             case OpCode::OP_NOT: {
+                if (!stack_.empty() && stack_.back().type == ValueType::Bool) {
+                    stack_.back().boolVal = !stack_.back().boolVal;
+                    stack_.back().intVal = stack_.back().boolVal ? 1 : 0;
+                    break;
+                }
                 Value val = pop();
                 push(Value(!val.asBool()));
                 break;
@@ -971,6 +1052,18 @@ void VM::run(const BytecodeProgram& prog) {
             }
 
             case OpCode::OP_EQ: {
+                if (stack_.size() >= 2) {
+                    Value& b = stack_.back();
+                    Value& a = stack_[stack_.size() - 2];
+                    if (a.type == ValueType::Int && b.type == ValueType::Int) {
+                        bool res = (a.intVal == b.intVal);
+                        a.type = ValueType::Bool;
+                        a.boolVal = res;
+                        a.intVal = res ? 1 : 0;
+                        stack_.pop_back();
+                        break;
+                    }
+                }
                 Value b = pop();
                 Value a = pop();
                 push(Value(a.equals(b)));
@@ -978,6 +1071,18 @@ void VM::run(const BytecodeProgram& prog) {
             }
 
             case OpCode::OP_NE: {
+                if (stack_.size() >= 2) {
+                    Value& b = stack_.back();
+                    Value& a = stack_[stack_.size() - 2];
+                    if (a.type == ValueType::Int && b.type == ValueType::Int) {
+                        bool res = (a.intVal != b.intVal);
+                        a.type = ValueType::Bool;
+                        a.boolVal = res;
+                        a.intVal = res ? 1 : 0;
+                        stack_.pop_back();
+                        break;
+                    }
+                }
                 Value b = pop();
                 Value a = pop();
                 push(Value(a.notEquals(b)));
@@ -985,6 +1090,18 @@ void VM::run(const BytecodeProgram& prog) {
             }
 
             case OpCode::OP_LT: {
+                if (stack_.size() >= 2) {
+                    Value& b = stack_.back();
+                    Value& a = stack_[stack_.size() - 2];
+                    if (a.type == ValueType::Int && b.type == ValueType::Int) {
+                        bool res = (a.intVal < b.intVal);
+                        a.type = ValueType::Bool;
+                        a.boolVal = res;
+                        a.intVal = res ? 1 : 0;
+                        stack_.pop_back();
+                        break;
+                    }
+                }
                 Value b = pop();
                 Value a = pop();
                 push(Value(a.lessThan(b)));
@@ -992,6 +1109,18 @@ void VM::run(const BytecodeProgram& prog) {
             }
 
             case OpCode::OP_LE: {
+                if (stack_.size() >= 2) {
+                    Value& b = stack_.back();
+                    Value& a = stack_[stack_.size() - 2];
+                    if (a.type == ValueType::Int && b.type == ValueType::Int) {
+                        bool res = (a.intVal <= b.intVal);
+                        a.type = ValueType::Bool;
+                        a.boolVal = res;
+                        a.intVal = res ? 1 : 0;
+                        stack_.pop_back();
+                        break;
+                    }
+                }
                 Value b = pop();
                 Value a = pop();
                 push(Value(a.lessOrEqual(b)));
@@ -999,6 +1128,18 @@ void VM::run(const BytecodeProgram& prog) {
             }
 
             case OpCode::OP_GT: {
+                if (stack_.size() >= 2) {
+                    Value& b = stack_.back();
+                    Value& a = stack_[stack_.size() - 2];
+                    if (a.type == ValueType::Int && b.type == ValueType::Int) {
+                        bool res = (a.intVal > b.intVal);
+                        a.type = ValueType::Bool;
+                        a.boolVal = res;
+                        a.intVal = res ? 1 : 0;
+                        stack_.pop_back();
+                        break;
+                    }
+                }
                 Value b = pop();
                 Value a = pop();
                 push(Value(a.greaterThan(b)));
@@ -1006,6 +1147,18 @@ void VM::run(const BytecodeProgram& prog) {
             }
 
             case OpCode::OP_GE: {
+                if (stack_.size() >= 2) {
+                    Value& b = stack_.back();
+                    Value& a = stack_[stack_.size() - 2];
+                    if (a.type == ValueType::Int && b.type == ValueType::Int) {
+                        bool res = (a.intVal >= b.intVal);
+                        a.type = ValueType::Bool;
+                        a.boolVal = res;
+                        a.intVal = res ? 1 : 0;
+                        stack_.pop_back();
+                        break;
+                    }
+                }
                 Value b = pop();
                 Value a = pop();
                 push(Value(a.greaterOrEqual(b)));
@@ -1103,6 +1256,124 @@ void VM::run(const BytecodeProgram& prog) {
                 }
                 arr.arrVal[idx] = val;
                 push(arr);
+                break;
+            }
+
+            case OpCode::OP_ARRAY_GET_GLOBAL: {
+                uint32_t nameIdx = frame->chunk->readUint32(frame->ip);
+                Value* slot = (nameIdx < frame->globalSlots.size()) ? frame->globalSlots[nameIdx] : nullptr;
+                if (!slot) {
+                    const std::string& name = frame->chunk->names[nameIdx];
+                    auto it = globals_.find(normalize(name));
+                    if (it == globals_.end()) throw AlgoError("Variable '" + name + "' non définie", curLine);
+                    slot = &it->second;
+                    if (nameIdx < frame->globalSlots.size()) frame->globalSlots[nameIdx] = slot;
+                }
+                int64_t idx = pop().asInt();
+                if (slot->isArray()) {
+                    if (idx < 0 || (size_t)idx >= slot->arrVal.size()) {
+                        throw AlgoError("Indice " + std::to_string(idx) + " hors bornes", curLine);
+                    }
+                    push(slot->arrVal[idx]);
+                } else if (slot->isString()) {
+                    size_t len = utf8Length(slot->asString());
+                    if (idx < 0 || (size_t)idx >= len) {
+                        throw AlgoError("Indice " + std::to_string(idx) + " hors bornes", curLine);
+                    }
+                    push(Value(utf8Substr(slot->asString(), static_cast<size_t>(idx), static_cast<size_t>(idx + 1))));
+                } else {
+                    throw AlgoError("L'expression n'est pas un tableau", curLine);
+                }
+                break;
+            }
+
+            case OpCode::OP_ARRAY_SET_GLOBAL: {
+                uint32_t nameIdx = frame->chunk->readUint32(frame->ip);
+                Value* slot = (nameIdx < frame->globalSlots.size()) ? frame->globalSlots[nameIdx] : nullptr;
+                if (!slot) {
+                    const std::string& name = frame->chunk->names[nameIdx];
+                    auto it = globals_.find(normalize(name));
+                    if (it == globals_.end()) throw AlgoError("Variable '" + name + "' non définie", curLine);
+                    slot = &it->second;
+                    if (nameIdx < frame->globalSlots.size()) frame->globalSlots[nameIdx] = slot;
+                }
+                Value val = pop();
+                int64_t idx = pop().asInt();
+                if (!slot->isArray()) throw AlgoError("L'expression n'est pas un tableau", curLine);
+                if (idx < 0 || (size_t)idx >= slot->arrVal.size()) {
+                    throw AlgoError("Indice " + std::to_string(idx) + " hors bornes", curLine);
+                }
+                slot->arrVal[idx] = std::move(val);
+                break;
+            }
+
+            case OpCode::OP_ARRAY_GET_LOCAL: {
+                uint32_t slot = frame->chunk->readUint32(frame->ip);
+                Value& arr = stack_[frame->stackBase + slot];
+                int64_t idx = pop().asInt();
+                if (arr.isArray()) {
+                    if (idx < 0 || (size_t)idx >= arr.arrVal.size()) {
+                        throw AlgoError("Indice " + std::to_string(idx) + " hors bornes", curLine);
+                    }
+                    push(arr.arrVal[idx]);
+                } else if (arr.isString()) {
+                    size_t len = utf8Length(arr.asString());
+                    if (idx < 0 || (size_t)idx >= len) {
+                        throw AlgoError("Indice " + std::to_string(idx) + " hors bornes", curLine);
+                    }
+                    push(Value(utf8Substr(arr.asString(), static_cast<size_t>(idx), static_cast<size_t>(idx + 1))));
+                } else {
+                    throw AlgoError("L'expression n'est pas un tableau", curLine);
+                }
+                break;
+            }
+
+            case OpCode::OP_ARRAY_SET_LOCAL: {
+                uint32_t slot = frame->chunk->readUint32(frame->ip);
+                Value& arr = stack_[frame->stackBase + slot];
+                Value val = pop();
+                int64_t idx = pop().asInt();
+                if (!arr.isArray()) throw AlgoError("L'expression n'est pas un tableau", curLine);
+                if (idx < 0 || (size_t)idx >= arr.arrVal.size()) {
+                    throw AlgoError("Indice " + std::to_string(idx) + " hors bornes", curLine);
+                }
+                arr.arrVal[idx] = std::move(val);
+                break;
+            }
+
+            case OpCode::OP_ARRAY_GET_REF: {
+                uint32_t slot = frame->chunk->readUint32(frame->ip);
+                Value* arrPtr = (slot < frame->refSlots.size() && frame->refSlots[slot].ptr != nullptr)
+                    ? frame->refSlots[slot].ptr : &stack_[frame->stackBase + slot];
+                int64_t idx = pop().asInt();
+                if (arrPtr->isArray()) {
+                    if (idx < 0 || (size_t)idx >= arrPtr->arrVal.size()) {
+                        throw AlgoError("Indice " + std::to_string(idx) + " hors bornes", curLine);
+                    }
+                    push(arrPtr->arrVal[idx]);
+                } else if (arrPtr->isString()) {
+                    size_t len = utf8Length(arrPtr->asString());
+                    if (idx < 0 || (size_t)idx >= len) {
+                        throw AlgoError("Indice " + std::to_string(idx) + " hors bornes", curLine);
+                    }
+                    push(Value(utf8Substr(arrPtr->asString(), static_cast<size_t>(idx), static_cast<size_t>(idx + 1))));
+                } else {
+                    throw AlgoError("L'expression n'est pas un tableau", curLine);
+                }
+                break;
+            }
+
+            case OpCode::OP_ARRAY_SET_REF: {
+                uint32_t slot = frame->chunk->readUint32(frame->ip);
+                Value* arrPtr = (slot < frame->refSlots.size() && frame->refSlots[slot].ptr != nullptr)
+                    ? frame->refSlots[slot].ptr : &stack_[frame->stackBase + slot];
+                Value val = pop();
+                int64_t idx = pop().asInt();
+                if (!arrPtr->isArray()) throw AlgoError("L'expression n'est pas un tableau", curLine);
+                if (idx < 0 || (size_t)idx >= arrPtr->arrVal.size()) {
+                    throw AlgoError("Indice " + std::to_string(idx) + " hors bornes", curLine);
+                }
+                arrPtr->arrVal[idx] = std::move(val);
                 break;
             }
 
