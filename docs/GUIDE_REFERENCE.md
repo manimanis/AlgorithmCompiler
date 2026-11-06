@@ -1,6 +1,6 @@
 # 📖 Manuel de Référence Complet & Guide d'Utilisation
 
-**AlgorithmCompiler v1.5.0**  
+**AlgorithmCompiler v1.5.1**  
 *Compilateur C++20, Interpréteur, Machine Virtuelle à Bytecode et Transpilateur Python pour le Pseudo-code Algorithmique du Baccalauréat Tunisien.*
 
 ---
@@ -337,8 +337,8 @@ val_ptr : ^entier
 | Soustraction | `-` | Différence | `x - y` |
 | Multiplication | `*` | Produit | `base * hauteur` |
 | Division réelle | `/` | Quotient réel flottant | `7 / 2` $\rightarrow 3.5$ |
-| Division entière | `div` | Quotient euclidien entier | `7 div 2` $\rightarrow 3$ |
-| Modulo | `mod` ou `%` | Reste de la division euclidienne | `7 mod 2` $\rightarrow 1$ |
+| Division entière | `div` | Quotient euclidien entier | `7 div 2` $\rightarrow 3$, `-5 div 3` $\rightarrow -2$ |
+| Modulo | `mod` ou `%` | Reste de la division euclidienne | `7 mod 2` $\rightarrow 1$, `-5 mod 3` $\rightarrow 1$ |
 | Puissance | `^` ou `**` | Élévation à la puissance | `2 ^ 10` $\rightarrow 1024$ |
 | Moins unaire | `-` | Négation arithmétique | `-x` |
 
@@ -634,7 +634,7 @@ Liberer(p)
 | `Abs(x)` | Valeur absolue ($\|x\|$) | même type | `Abs(-7.5)` $\rightarrow 7.5$ |
 | `Exp(x)` | Exponentielle ($e^x$) | `réel` | `Exp(1)` $\rightarrow 2.71828...$ |
 | `Ln(x)` ou `Log(x)` | Logarithme népérien | `réel` | `Ln(10)` $\rightarrow 2.30258...$ |
-| `Ent(x)` | Partie entière ($\lfloor x \rfloor$) | `entier` | `Ent(3.9)` $\rightarrow 3$ |
+| `Ent(x)` | Partie entière (troncature de la partie décimale) | `entier` | `Ent(3.9)` $\rightarrow 3$, `Ent(-3.9)` $\rightarrow -3$ |
 | `Arrondi(x)` | Arrondi à l'entier le plus proche | `entier` | `Arrondi(3.6)` $\rightarrow 4$ |
 | `Frac(x)` | Partie fractionnaire ($x - \lfloor x \rfloor$) | `réel` | `Frac(3.14)` $\rightarrow 0.14$ |
 | `Sin(x)`, `Cos(x)`, `Tan(x)` | Fonctions trigonométriques (radians) | `réel` | `Cos(0)` $\rightarrow 1.0$ |
@@ -877,4 +877,4 @@ racine : Arbre
 
 ---
 
-*Document généré pour AlgorithmCompiler v1.5.0 — Standard Algorithmique du Baccalauréat Tunisien.*
+*Document généré pour AlgorithmCompiler v1.5.1 — Standard Algorithmique du Baccalauréat Tunisien.*

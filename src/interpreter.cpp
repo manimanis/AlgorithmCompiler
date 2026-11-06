@@ -1510,7 +1510,7 @@ Value Interpreter::evaluateCall(const std::string& name, const std::vector<std::
     if (n == "ent") {
         if (args.empty()) throw AlgoError("ent attend 1 argument", line);
         double x = evaluateExpression(args[0], env).asReal();
-        return Value((int64_t)std::floor(x));
+        return Value((int64_t)std::trunc(x));
     }
     if (n == "estnum" || n == "est_num") {
         if (args.empty()) throw AlgoError("estnum attend 1 argument", line);

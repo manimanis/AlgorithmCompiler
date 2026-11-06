@@ -39,9 +39,13 @@ Value Value::divInt(const Value& other) const {
     if (r == 0) {
         throw AlgoError("Division entière par zéro");
     }
-    // Floor division
-    double res = std::floor((double)asInt() / (double)r);
-    return Value((int64_t)res);
+    int64_t a = asInt();
+    int64_t q = a / r;
+    int64_t rem = a % r;
+    if ((rem != 0) && ((rem < 0) ^ (r < 0))) {
+        q -= 1;
+    }
+    return Value(q);
 }
 
 Value Value::mod(const Value& other) const {
@@ -49,7 +53,12 @@ Value Value::mod(const Value& other) const {
     if (r == 0) {
         throw AlgoError("Modulo par zéro");
     }
-    return Value(asInt() % r);
+    int64_t a = asInt();
+    int64_t rem = a % r;
+    if ((rem != 0) && ((rem < 0) ^ (r < 0))) {
+        rem += r;
+    }
+    return Value(rem);
 }
 
 bool Value::equals(const Value& other) const {

@@ -277,7 +277,7 @@ void VM::executeBuiltin(uint32_t builtinId, uint32_t argCount, int line) {
         }
         case BI_ENT: {
             if (args.empty()) throw AlgoError("ent attend 1 argument", line);
-            push(Value((int64_t)std::floor(args[0].asReal())));
+            push(Value((int64_t)std::trunc(args[0].asReal())));
             break;
         }
         case BI_ARRONDI: {
@@ -1062,9 +1062,13 @@ void VM::run(const BytecodeProgram& prog) {
                     Value& a = stack_[stack_.size() - 2];
                     if (a.type == ValueType::Int && b.type == ValueType::Int) {
                         if (b.intVal == 0) throw AlgoError("Division entière par zéro", curLine);
-                        double res = std::floor(static_cast<double>(a.intVal) / static_cast<double>(b.intVal));
-                        a.intVal = static_cast<int64_t>(res);
-                        a.realVal = static_cast<double>(a.intVal);
+                        int64_t q = a.intVal / b.intVal;
+                        int64_t rem = a.intVal % b.intVal;
+                        if ((rem != 0) && ((rem < 0) ^ (b.intVal < 0))) {
+                            q -= 1;
+                        }
+                        a.intVal = q;
+                        a.realVal = static_cast<double>(q);
                         stack_.pop_back();
                         break;
                     }
@@ -1081,8 +1085,12 @@ void VM::run(const BytecodeProgram& prog) {
                     Value& a = stack_[stack_.size() - 2];
                     if (a.type == ValueType::Int && b.type == ValueType::Int) {
                         if (b.intVal == 0) throw AlgoError("Modulo par zéro", curLine);
-                        a.intVal %= b.intVal;
-                        a.realVal = static_cast<double>(a.intVal);
+                        int64_t rem = a.intVal % b.intVal;
+                        if ((rem != 0) && ((rem < 0) ^ (b.intVal < 0))) {
+                            rem += b.intVal;
+                        }
+                        a.intVal = rem;
+                        a.realVal = static_cast<double>(rem);
                         stack_.pop_back();
                         break;
                     }
