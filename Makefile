@@ -63,28 +63,31 @@ SRCS_COMMON = src/lexer.cpp src/value.cpp src/parser.cpp src/interpreter.cpp src
 SRCS_MAIN   = src/python_transpiler.cpp src/main.cpp
 SRCS_TEST   = src/test_runner.cpp
 SRCS_FUZZ   = src/fuzz_runner.cpp
+SRCS_STUB   = src/stub_main.cpp
 
 OBJS_COMMON = $(SRCS_COMMON:.cpp=.o)
 OBJS_MAIN   = $(SRCS_MAIN:.cpp=.o)
 OBJS_TEST   = $(SRCS_TEST:.cpp=.o)
 OBJS_FUZZ   = $(SRCS_FUZZ:.cpp=.o)
+OBJS_STUB   = $(SRCS_STUB:.cpp=.o)
 
 TARGET      := algo$(BIN_EXT)
 TEST_TARGET := run_tests$(BIN_EXT)
 FUZZ_TARGET := fuzz_runner$(BIN_EXT)
+STUB_TARGET := algo_stub$(BIN_EXT)
 
 # Nettoyage multi-plateforme
 ifeq ($(HOST_OS),windows)
-    CLEAN_CMD := del /Q /F src\*.o *.exe algo run_tests fuzz_runner 2>nul || exit 0
+    CLEAN_CMD := del /Q /F src\*.o *.exe algo run_tests fuzz_runner algo_stub 2>nul || exit 0
 else
-    CLEAN_CMD := rm -f src/*.o algo run_tests fuzz_runner algo.exe run_tests.exe fuzz_runner.exe
+    CLEAN_CMD := rm -f src/*.o algo run_tests fuzz_runner algo_stub algo.exe run_tests.exe fuzz_runner.exe algo_stub.exe
 endif
 
 # ==============================================================================
 # Règles de compilation
 # ==============================================================================
 
-all: $(TARGET) $(TEST_TARGET) $(FUZZ_TARGET)
+all: $(TARGET) $(TEST_TARGET) $(FUZZ_TARGET) $(STUB_TARGET)
 
 $(TARGET): $(OBJS_COMMON) $(OBJS_MAIN)
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
@@ -93,6 +96,9 @@ $(TEST_TARGET): $(OBJS_COMMON) $(OBJS_TEST)
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
 
 $(FUZZ_TARGET): $(OBJS_COMMON) $(OBJS_FUZZ)
+	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
+
+$(STUB_TARGET): src/value.o src/bytecode.o src/vm.o $(OBJS_STUB)
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
 
 %.o: %.cpp

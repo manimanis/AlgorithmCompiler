@@ -36,5 +36,12 @@ if %ERRORLEVEL% NEQ 0 (
     exit /b 1
 )
 
+echo Compilation du runner stub VM autonome...
+%CXX% -std=c++20 -O2 -s -static -Iinclude src/value.cpp src/bytecode.cpp src/vm.cpp src/stub_main.cpp -o algo_stub.exe
+if %ERRORLEVEL% NEQ 0 (
+    echo Erreur de compilation de algo_stub.exe
+    exit /b 1
+)
+
 echo Compilation terminee avec succes!
 endlocal

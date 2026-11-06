@@ -223,6 +223,11 @@ int main(int argc, char* argv[]) {
                 BytecodeCompiler compiler;
                 BytecodeProgram bcProg = compiler.compile(prog);
 
+                // Test de validation systématique de la sérialisation / désérialisation binaire
+                std::stringstream ss(std::ios::in | std::ios::out | std::ios::binary);
+                serializeProgram(ss, bcProg);
+                BytecodeProgram deserializedProg = deserializeProgram(ss);
+
                 VM vm(opts);
                 for (const auto& inVal : inputs) {
                     vm.addInput(inVal);
@@ -230,7 +235,7 @@ int main(int argc, char* argv[]) {
                 vm.setOutputCallback([&actualOutputRaw](const std::string& str) {
                     actualOutputRaw += str;
                 });
-                vm.run(bcProg);
+                vm.run(deserializedProg);
             }
 
             if (hasExpectedError) {

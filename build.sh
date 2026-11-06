@@ -17,4 +17,9 @@ $CXX -std=c++20 -O2 -Wall -Wextra -Iinclude \
     src/semantic_analyzer.cpp src/test_runner.cpp \
     -o run_tests
 
+echo "Compilation du runner stub VM autonome..."
+$CXX -std=c++20 -O2 -Wall -Wextra -Iinclude \
+    src/value.cpp src/bytecode.cpp src/vm.cpp src/stub_main.cpp \
+    -o algo_stub
+
 echo "Compilation terminée avec succès!"

@@ -463,20 +463,42 @@ node scripts/compile.js
 
 Les exécutables générés sous Windows sont :
 - `algo.exe` : Le compilateur, interpréteur et transpilateur principal (autonome, sans dépendance DLL).
+- `algo_stub.exe` : Le stub d'exécution VM allégé utilisé pour la génération d'exécutables autonomes.
 - `run_tests.exe` : Le runner de la suite des 223 tests unitaires.
 
 ---
 
 ## 🚀 Utilisation en Ligne de Commande (CLI)
 
-### Exécuter un algorithme (Interpréteur)
+### Exécuter un algorithme (Interpréteur ou Bytecode)
 Sous Linux / macOS :
 ```bash
 ./algo mon_programme.alg
+./algo mon_programme.algb   # Exécution directe d'un fichier bytecode binaire
 ```
 Sous Windows :
 ```cmd
 algo.exe mon_programme.alg
+algo.exe mon_programme.algb  # Exécution directe d'un fichier bytecode binaire
+```
+
+### Compiler en exécutable autonome indépendant (.exe)
+Génère un binaire exécutable `.exe` complètement autonome (contenant la VM et le bytecode incorporé, exécutable sur n'importe quelle machine Windows sans installer AlgorithmCompiler) :
+```cmd
+algo.exe mon_programme.alg --build-exe mon_programme.exe
+# ou syntaxe raccourcie :
+algo.exe mon_programme.alg -b
+
+# L'exécutable généré se lance directement :
+.\mon_programme.exe
+```
+
+### Compiler en bytecode binaire (.algb)
+Produit un fichier bytecode binaire compact sérialisé :
+```cmd
+algo.exe mon_programme.alg --compile-bc mon_programme.algb
+# ou syntaxe raccourcie :
+algo.exe mon_programme.alg -c
 ```
 
 ### Transpiler vers Python
@@ -495,6 +517,8 @@ Enregistrer le code Python directement dans un fichier :
 - `--check` : Effectue uniquement l'analyse syntaxique et la vérification sémantique statique sans exécuter le code.
 - `--vm` : Exécute l'algorithme via la Machine Virtuelle à Bytecode (mode activé par défaut, exécution linéaire ultra-rapide).
 - `--ast` : Force l'exécution via l'Interpréteur d'AST classique (Patron Visiteur sans RTTI).
+- `--build-exe, -b [out.exe]` : Compile et produit un programme exécutable autonome indépendant (`.exe`) embarquant le bytecode et la VM.
+- `--compile-bc, -c [out.algb]` : Compile et sérialise le bytecode dans un fichier binaire `.algb`.
 - `--dump-bytecode` : Compile et affiche le désassemblage complet du bytecode généré sans exécuter.
 - `--to-python, --py [out.py]` : Transpile vers du code Python 3 (vers la sortie standard ou un fichier).
 - `--max-iter <N>` : Fixe la limite maximale d'itérations de boucle (défaut : 1 000 000).

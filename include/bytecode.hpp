@@ -197,4 +197,18 @@ struct BytecodeProgram {
     std::unordered_map<std::string, BytecodeFunction> subroutines;
 };
 
+// Constantes magiques du format binaire
+constexpr uint8_t ALGB_MAGIC[6] = {'A', 'L', 'G', 'B', 0x01, 0x00};
+constexpr char ALGB_EXEC_MAGIC[8] = {'A', 'L', 'G', 'B', 'E', 'X', 'E', 'C'};
+
+// Sérialisation & Désérialisation du Bytecode
+void serializeProgram(std::ostream& os, const BytecodeProgram& prog);
+BytecodeProgram deserializeProgram(std::istream& is);
+
+// Support des Exécutables Autonomes (.exe)
+std::string getSelfExecutablePath();
+bool isStandaloneExecutable(const std::string& path = "");
+int runStandaloneExecutable(const std::string& path, int argc, char* argv[]);
+bool buildStandaloneExecutable(const BytecodeProgram& prog, const std::string& outputPath, std::string& outError);
+
 } // namespace algo

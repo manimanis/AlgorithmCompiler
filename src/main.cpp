@@ -63,12 +63,17 @@ static void printHelp(const std::string& progPath) {
               << "==============================================================================\n\n"
               << "UTILISATION :\n"
               << "    " << progName << " <fichier.alg> [OPTIONS]\n"
+              << "    " << progName << " <fichier.algb> [OPTIONS]\n"
               << "    " << progName << " [OPTIONS]\n\n"
               << "ARGUMENTS :\n"
-              << "    <fichier.alg>                 Chemin du fichier source en pseudo-code algorithmique.\n\n"
+              << "    <fichier.alg>                 Chemin du fichier source en pseudo-code algorithmique.\n"
+              << "    <fichier.algb>                Fichier binaire de bytecode précompilé à exécuter directement.\n\n"
               << "OPTIONS PRINCIPALES :\n"
               << "    -h, --help                    Affiche ce message d'aide et quitte.\n"
               << "    -v, --version                 Affiche le numéro de version du compilateur.\n"
+              << "    -b, --build-exe [out.exe]     Compile l'algorithme sous forme d'un programme exécutable\n"
+              << "                                  autonome (.exe) indépendant, sans dépendance externe.\n"
+              << "    -c, --compile-bc [out.algb]   Compile l'algorithme en fichier binaire de bytecode (.algb).\n"
               << "    --check                       Effectue uniquement l'analyse syntaxique et sémantique\n"
               << "                                  (vérification des types, portées, arités, etc.)\n"
               << "                                  sans exécuter l'algorithme.\n"
@@ -90,16 +95,24 @@ static void printHelp(const std::string& progPath) {
               << "                                  (utilisé par les fonctions Aléa / Hasard).\n\n"
               << "EXEMPLES :\n"
               << "    " << progName << " mon_programme.alg\n"
+              << "    " << progName << " mon_programme.alg --build-exe mon_programme.exe\n"
+              << "    " << progName << " mon_programme.alg --compile-bc mon_programme.algb\n"
+              << "    " << progName << " mon_programme.algb\n"
               << "    " << progName << " mon_programme.alg --vm\n"
               << "    " << progName << " mon_programme.alg --dump-bytecode\n"
               << "    " << progName << " mon_programme.alg --check\n"
-              << "    " << progName << " mon_programme.alg --to-python\n"
-              << "    " << progName << " mon_programme.alg --to-python sortie.py\n"
-              << "    " << progName << " mon_programme.alg --seed 42 --max-iter 2000000\n";
+              << "    " << progName << " mon_programme.alg --to-python\n";
 }
 
 int main(int argc, char* argv[]) {
     initConsoleUtf8();
+
+    // Mode autonome : si le binaire actuel intègre du bytecode concaténé (signature ALGBEXEC),
+    // l'exécuter directement en ignorant l'analyseur de ligne de commande standard
+    std::string selfExe = getSelfExecutablePath();
+    if (isStandaloneExecutable(selfExe)) {
+        return runStandaloneExecutable(selfExe, argc, argv);
+    }
 
     if (argc < 2) {
         std::cout << "Usage: algo <fichier.alg> [OPTIONS]\n"
@@ -114,6 +127,10 @@ int main(int argc, char* argv[]) {
     bool hasCliSeed = false;
     bool toPython = false;
     std::string pyOutputPath;
+    bool buildExe = false;
+    std::string exeOutputPath;
+    bool compileBc = false;
+    std::string bcOutputPath;
     bool checkOnly = false;
     bool useVM = true;
     bool dumpBytecode = false;
@@ -128,6 +145,16 @@ int main(int argc, char* argv[]) {
         } else if (arg == "-v" || arg == "--version") {
             printVersion();
             return 0;
+        } else if (arg == "-b" || arg == "--build-exe") {
+            buildExe = true;
+            if (i + 1 < argc && argv[i + 1][0] != '-') {
+                exeOutputPath = argv[++i];
+            }
+        } else if (arg == "-c" || arg == "--compile-bc") {
+            compileBc = true;
+            if (i + 1 < argc && argv[i + 1][0] != '-') {
+                bcOutputPath = argv[++i];
+            }
         } else if (arg == "--check") {
             checkOnly = true;
         } else if (arg == "--vm") {
@@ -170,6 +197,54 @@ int main(int argc, char* argv[]) {
     }
 
     try {
+        // Exécution directe si le fichier fourni est un fichier de bytecode binaire (.algb)
+        bool isBytecodeFile = (filePath.size() >= 5 && filePath.substr(filePath.size() - 5) == ".algb");
+        if (isBytecodeFile) {
+            std::ifstream is(filePath, std::ios::binary);
+            if (!is) {
+                std::cerr << "Erreur: Impossible d'ouvrir le fichier bytecode : " << filePath << std::endl;
+                return 1;
+            }
+            BytecodeProgram bcProg = deserializeProgram(is);
+            if (dumpBytecode) {
+                bcProg.mainChunk.disassemble("Bytecode Principal: " + bcProg.name);
+                for (const auto& kv : bcProg.subroutines) {
+                    kv.second.chunk.disassemble("Sous-programme: " + kv.first);
+                }
+                return 0;
+            }
+            if (buildExe) {
+                if (exeOutputPath.empty()) {
+                    std::filesystem::path p(filePath);
+#ifdef _WIN32
+                    p.replace_extension(".exe");
+#else
+                    p.replace_extension("");
+#endif
+                    exeOutputPath = p.string();
+                }
+                std::string err;
+                if (!buildStandaloneExecutable(bcProg, exeOutputPath, err)) {
+                    std::cerr << "Erreur lors de la génération de l'exécutable autonome : " << err << std::endl;
+                    return 1;
+                }
+                std::cout << "[OK] Exécutable autonome généré avec succès : " << exeOutputPath << std::endl;
+                return 0;
+            }
+            VM vm(options);
+            vm.setOutputCallback([](const std::string& text) {
+                std::cout << text;
+            });
+            auto t0 = std::chrono::high_resolution_clock::now();
+            vm.run(bcProg);
+            auto t1 = std::chrono::high_resolution_clock::now();
+            if (showTime) {
+                double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+                std::cout << "\n[VM] Temps d'exécution : " << std::fixed << std::setprecision(3) << ms << " ms\n";
+            }
+            return 0;
+        }
+
         std::string source = readFile(filePath);
 
         InterpreterOptions fileOpts = InterpreterOptions::fromSource(source);
@@ -216,6 +291,45 @@ int main(int argc, char* argv[]) {
             for (const auto& kv : bcProg.subroutines) {
                 kv.second.chunk.disassemble("Sous-programme: " + kv.first);
             }
+            return 0;
+        }
+
+        if (compileBc) {
+            BytecodeCompiler compiler;
+            BytecodeProgram bcProg = compiler.compile(prog);
+            if (bcOutputPath.empty()) {
+                std::filesystem::path p(filePath);
+                p.replace_extension(".algb");
+                bcOutputPath = p.string();
+            }
+            std::ofstream os(bcOutputPath, std::ios::binary);
+            if (!os) {
+                std::cerr << "Erreur: Impossible de créer le fichier bytecode : " << bcOutputPath << std::endl;
+                return 1;
+            }
+            serializeProgram(os, bcProg);
+            std::cout << "[OK] Bytecode binaire compilé avec succès : " << bcOutputPath << std::endl;
+            return 0;
+        }
+
+        if (buildExe) {
+            BytecodeCompiler compiler;
+            BytecodeProgram bcProg = compiler.compile(prog);
+            if (exeOutputPath.empty()) {
+                std::filesystem::path p(filePath);
+#ifdef _WIN32
+                p.replace_extension(".exe");
+#else
+                p.replace_extension("");
+#endif
+                exeOutputPath = p.string();
+            }
+            std::string err;
+            if (!buildStandaloneExecutable(bcProg, exeOutputPath, err)) {
+                std::cerr << "Erreur lors de la génération de l'exécutable autonome : " << err << std::endl;
+                return 1;
+            }
+            std::cout << "[OK] Exécutable autonome généré avec succès : " << exeOutputPath << std::endl;
             return 0;
         }
 

@@ -1,7 +1,7 @@
 # 📖 Manuel de Référence Complet & Guide d'Utilisation
 
-**AlgorithmCompiler v1.5.1**  
-*Compilateur C++20, Interpréteur, Machine Virtuelle à Bytecode et Transpilateur Python pour le Pseudo-code Algorithmique du Baccalauréat Tunisien.*
+**AlgorithmCompiler v1.6.0**  
+*Compilateur C++20, Interpréteur, Machine Virtuelle à Bytecode, Sérialiseur Binaire, Générateur d'Exécutables Autonomes (.exe) et Transpilateur Python pour le Pseudo-code Algorithmique du Baccalauréat Tunisien.*
 
 ---
 
@@ -54,7 +54,7 @@
    - [Génération Aléatoire](#génération-aléatoire)
 8. [Analyseur Sémantique & Messages d'Erreur](#8-analyseur-sémantique--messages-derreur)
 9. [Transpilateur Python 3 (`--to-python`)](#9-transpilateur-python-3---to-python)
-10. [Machine Virtuelle & Bytecode (`--vm`, `--dump-bytecode`)](#10-machine-virtuelle--bytecode---vm---dump-bytecode)
+10. [Machine Virtuelle, Bytecode Binaire & Exécutables Autonomes (`--vm`, `--compile-bc`, `--build-exe`)](#10-machine-virtuelle-bytecode-binaire--exécutables-autonomes---vm---compile-bc---build-exe)
 11. [Exemples de Structures Dynamiques](#11-exemples-de-structures-dynamiques)
 
 ---
@@ -90,6 +90,8 @@ algo.exe [OPTIONS]
 | `--check` | Exécute uniquement l'analyse syntaxique et sémantique statique sans exécuter le code. |
 | `--vm` | Exécute le programme via la **Machine Virtuelle à Bytecode** (Mode par défaut ultra-rapide). |
 | `--ast` | Force l'exécution via le moteur d'interprétation d'AST (Patron Visiteur). |
+| `--build-exe`, `-b [out.exe]` | Compile l'algorithme (`.alg` ou `.algb`) en un **exécutable autonome indépendant (.exe)** embarquant le bytecode et la VM. |
+| `--compile-bc`, `-c [out.algb]` | Compile l'algorithme et sérialise le bytecode dans un fichier binaire compact `.algb`. |
 | `--compare` | Exécute le programme d'abord avec l'AST puis avec la VM et compare les temps d'exécution. |
 | `--time`, `--bench` | Mesure et affiche le temps d'exécution en millisecondes (`Temps d'exécution : X ms`). |
 | `--dump-bytecode` | Désassemble et affiche les instructions bytecode du programme compilé sans l'exécuter. |
@@ -108,22 +110,33 @@ algo.exe [OPTIONS]
 ### Exemples d'utilisation courante
 
 ```bash
-# 1. Exécution standard via la VM
+# 1. Exécution standard via la VM (fichier source .alg ou bytecode .algb)
 algo.exe programme.alg
+algo.exe programme.algb
 
-# 2. Vérification sémantique statique (mode pédagogique / CI)
+# 2. Compiler en exécutable autonome indépendant (.exe)
+algo.exe programme.alg --build-exe mon_programme.exe
+# ou syntaxe rapide :
+algo.exe programme.alg -b
+# Exécution directe sur toute machine Windows :
+.\mon_programme.exe
+
+# 3. Compiler en bytecode binaire (.algb)
+algo.exe programme.alg --compile-bc mon_programme.algb
+
+# 4. Vérification sémantique statique (mode pédagogique / CI)
 algo.exe devoir.alg --check
 
-# 3. Mesurer la performance d'exécution
+# 5. Mesurer la performance d'exécution
 algo.exe tri.alg --time
 
-# 4. Examiner le bytecode généré
+# 6. Examiner le bytecode généré
 algo.exe calcul.alg --dump-bytecode
 
-# 5. Transpiler vers un script Python autonome
+# 7. Transpiler vers un script Python autonome
 algo.exe algo_bac.alg --to-python solution.py
 
-# 6. Exécution sécurisée avec graine fixe et limite de boucles
+# 8. Exécution sécurisée avec graine fixe et limite de boucles
 algo.exe simulation.alg --seed 12345 --max-iter 500000
 ```
 
@@ -720,7 +733,7 @@ AlgorithmCompiler intègre un convertisseur vers **Python 3 moderne et idiomatiq
 
 ---
 
-## 10. Machine Virtuelle & Bytecode (`--vm`, `--dump-bytecode`)
+## 10. Machine Virtuelle, Bytecode Binaire & Exécutables Autonomes (`--vm`, `--compile-bc`, `--build-exe`)
 
 La Machine Virtuelle à Bytecode d'AlgorithmCompiler offre des gains de performance de plus de **75x** par rapport à l'évaluation pure d'AST :
 - **Fast-paths 1D pour tableaux** : Opcodes spécialisés (`OP_ARRAY_GET_GLOBAL`, `OP_ARRAY_SET_GLOBAL`, `OP_ARRAY_GET_LOCAL`, `OP_ARRAY_SET_LOCAL`) éliminant toute copie inutile.
@@ -729,10 +742,33 @@ La Machine Virtuelle à Bytecode d'AlgorithmCompiler offre des gains de performa
 - **Optimiseur Peephole** : Élimination des instructions inutiles et chaînage direct des sauts conditionnels (`OP_JUMP_IF_FALSE`).
 - **Pliage de constantes (Constant Folding)** : Évaluation au moment de la compilation des sous-expressions statiques (ex. `2 * 3.14 * 10`).
 
-Visualiser le désassemblage avec :
+### 10.1 Visualisation du Désassemblage
 ```bash
 algo.exe mon_programme.alg --dump-bytecode
 ```
+
+### 10.2 Bytecode Binaire Sérialisé (`.algb`)
+AlgorithmCompiler permet de compiler un algorithme en un fichier binaire compact `.algb` avec le format standardisé (`ALGB` magic number) :
+```bash
+# Compilation vers bytecode binaire :
+algo.exe mon_programme.alg --compile-bc mon_programme.algb
+
+# Exécution directe du bytecode binaire :
+algo.exe mon_programme.algb
+```
+
+### 10.3 Génération d'Exécutables Autonomes Indépendants (`.exe`)
+Vous pouvez générer un exécutable `.exe` Windows 100% autonome et sans dépendances à partir de n'importe quel code source `.alg` ou fichier bytecode `.algb` :
+```bash
+algo.exe mon_programme.alg --build-exe mon_programme.exe
+# ou syntaxe rapide :
+algo.exe mon_programme.alg -b
+```
+
+**Fonctionnement technique :**
+- L'exécutable généré utilise le patron d'overlay PE (`PE Overlay Pattern`) : le bytecode sérialisé est encapsulé directement à la fin du binaire avec un marqueur `ALGBEXEC` et sa taille en 64-bit.
+- Aucune compilation C++ ni chaîne d'outils externe (GCC, MinGW, Clang) n'est requise lors de la génération.
+- L'exécutable généré est statiquement lié (`-static -static-libgcc -static-libstdc++`) et ne dépend d'aucune DLL tierce. Il fonctionne directement sur n'importe quel PC Windows en double-cliquant dessus ou depuis une invite de commandes.
 
 ---
 
@@ -877,4 +913,4 @@ racine : Arbre
 
 ---
 
-*Document généré pour AlgorithmCompiler v1.5.1 — Standard Algorithmique du Baccalauréat Tunisien.*
+*Document généré pour AlgorithmCompiler v1.6.0 — Standard Algorithmique du Baccalauréat Tunisien.*
