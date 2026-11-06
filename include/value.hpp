@@ -13,7 +13,8 @@ enum class ValueType {
     Array,
     Record,
     FileHandle,
-    Ref
+    Ref,
+    Pointer
 };
 
 class Value {
@@ -27,21 +28,36 @@ public:
     std::map<std::string, Value> recVal;
     std::string fileLogicalName;
     Value* refPtr = nullptr;
+    std::shared_ptr<Value> ptrVal = nullptr;
 
-    Value() : type(ValueType::Null), intVal(0), realVal(0.0), boolVal(false), refPtr(nullptr) {}
-    Value(int64_t v) : type(ValueType::Int), intVal(v), realVal((double)v), boolVal(false), refPtr(nullptr) {}
-    Value(int v) : type(ValueType::Int), intVal(v), realVal((double)v), boolVal(false), refPtr(nullptr) {}
-    Value(double v) : type(ValueType::Real), intVal((int64_t)v), realVal(v), boolVal(false), refPtr(nullptr) {}
-    Value(bool v) : type(ValueType::Bool), intVal(v ? 1 : 0), realVal(0.0), boolVal(v), refPtr(nullptr) {}
-    Value(std::string v) : type(ValueType::String), intVal(0), realVal(0.0), boolVal(false), strVal(std::move(v)), refPtr(nullptr) {}
-    Value(const char* v) : type(ValueType::String), intVal(0), realVal(0.0), boolVal(false), strVal(v), refPtr(nullptr) {}
-    Value(std::vector<Value> v) : type(ValueType::Array), intVal(0), realVal(0.0), boolVal(false), arrVal(std::move(v)), refPtr(nullptr) {}
-    Value(std::map<std::string, Value> v) : type(ValueType::Record), intVal(0), realVal(0.0), boolVal(false), recVal(std::move(v)), refPtr(nullptr) {}
+    Value() : type(ValueType::Null), intVal(0), realVal(0.0), boolVal(false), refPtr(nullptr), ptrVal(nullptr) {}
+    Value(int64_t v) : type(ValueType::Int), intVal(v), realVal((double)v), boolVal(false), refPtr(nullptr), ptrVal(nullptr) {}
+    Value(int v) : type(ValueType::Int), intVal(v), realVal((double)v), boolVal(false), refPtr(nullptr), ptrVal(nullptr) {}
+    Value(double v) : type(ValueType::Real), intVal((int64_t)v), realVal(v), boolVal(false), refPtr(nullptr), ptrVal(nullptr) {}
+    Value(bool v) : type(ValueType::Bool), intVal(v ? 1 : 0), realVal(0.0), boolVal(v), refPtr(nullptr), ptrVal(nullptr) {}
+    Value(std::string v) : type(ValueType::String), intVal(0), realVal(0.0), boolVal(false), strVal(std::move(v)), refPtr(nullptr), ptrVal(nullptr) {}
+    Value(const char* v) : type(ValueType::String), intVal(0), realVal(0.0), boolVal(false), strVal(v), refPtr(nullptr), ptrVal(nullptr) {}
+    Value(std::vector<Value> v) : type(ValueType::Array), intVal(0), realVal(0.0), boolVal(false), arrVal(std::move(v)), refPtr(nullptr), ptrVal(nullptr) {}
+    Value(std::map<std::string, Value> v) : type(ValueType::Record), intVal(0), realVal(0.0), boolVal(false), recVal(std::move(v)), refPtr(nullptr), ptrVal(nullptr) {}
 
     static Value makeRef(Value* ptr) {
         Value v;
         v.type = ValueType::Ref;
         v.refPtr = ptr;
+        return v;
+    }
+
+    static Value makePointer(std::shared_ptr<Value> ptr) {
+        Value v;
+        v.type = ValueType::Pointer;
+        v.ptrVal = std::move(ptr);
+        return v;
+    }
+
+    static Value makeNil() {
+        Value v;
+        v.type = ValueType::Pointer;
+        v.ptrVal = nullptr;
         return v;
     }
 
@@ -55,6 +71,23 @@ public:
     bool isRecord() const { return (type == ValueType::Ref && refPtr) ? refPtr->isRecord() : type == ValueType::Record; }
     bool isFile() const { return (type == ValueType::Ref && refPtr) ? refPtr->isFile() : type == ValueType::FileHandle; }
     bool isRef() const { return type == ValueType::Ref; }
+    bool isPointer() const { return (type == ValueType::Ref && refPtr) ? refPtr->isPointer() : type == ValueType::Pointer; }
+
+    Value& deref() {
+        if (type == ValueType::Ref && refPtr) return refPtr->deref();
+        if (type != ValueType::Pointer || !ptrVal) {
+            throw AlgoError("Déréférencement d'un pointeur NIL ou non alloué");
+        }
+        return *ptrVal;
+    }
+
+    const Value& deref() const {
+        if (type == ValueType::Ref && refPtr) return refPtr->deref();
+        if (type != ValueType::Pointer || !ptrVal) {
+            throw AlgoError("Déréférencement d'un pointeur NIL ou non alloué");
+        }
+        return *ptrVal;
+    }
 
     int64_t asInt() const {
         if (type == ValueType::Ref && refPtr) return refPtr->asInt();
@@ -100,6 +133,10 @@ public:
             return s;
         }
         if (type == ValueType::Null) return "";
+        if (type == ValueType::Pointer) {
+            if (!ptrVal) return "NIL";
+            return ptrVal->asString();
+        }
         if (type == ValueType::Record) {
             std::string s = "{";
             bool first = true;

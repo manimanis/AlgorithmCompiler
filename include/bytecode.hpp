@@ -37,6 +37,10 @@ enum class OpCode : uint8_t {
     OP_REF_ARRAY,           // [ref, idx] -> push Value::makeRef(&arr[idx])
     OP_REF_ARRAY2D,         // [ref, r, c] -> push Value::makeRef(&mat[r][c])
     OP_REF_MEMBER,          // [uint32 nameIdx] -> [ref] -> push Value::makeRef(&rec[field])
+    OP_REF_DEREF,           // [ref/ptr] -> push Value::makeRef(ptrVal.get())
+    OP_DEREF,               // [ptr] -> push *ptrVal
+    OP_ALLOC_PTR,           // [uint32 typeNameIdx] -> [ref] -> *ref = Value::makePointer(...)
+    OP_FREE_PTR,            // [ref] -> *ref = Value::makeNil()
     OP_SET_LVALUE,          // [ref, val] -> *ref = val
 
     // Arithmetic

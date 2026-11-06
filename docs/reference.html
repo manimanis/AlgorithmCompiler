@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AlgorithmCompiler v1.4.0 — Manuel de Référence & Aide Complète</title>
+    <title>AlgorithmCompiler v1.5.0 — Manuel de Référence & Aide Complète</title>
     <style>
         :root {
             --primary: #2563eb;
@@ -355,7 +355,7 @@
         <div class="brand-title">
             <span>⚡ algo.exe</span>
         </div>
-        <div class="brand-subtitle">AlgorithmCompiler v1.4.0</div>
+        <div class="brand-subtitle">AlgorithmCompiler v1.5.0</div>
 
         <input type="text" id="searchInput" class="search-box" placeholder="Rechercher une instruction..." onkeyup="filterDocs()">
 
@@ -386,6 +386,7 @@
                 <li><a href="#inst-loops">Boucles (Pour, Tant Que, Répéter)</a></li>
                 <li><a href="#inst-subprograms">Procédures & Fonctions</a></li>
                 <li><a href="#inst-files">Manipulation de Fichiers</a></li>
+                <li><a href="#inst-pointers">Pointeurs & Mémoire (Allouer, Liberer)</a></li>
             </ul>
         </div>
 
@@ -404,10 +405,10 @@
     <main id="content">
         <!-- Hero Header -->
         <section class="hero-banner">
-            <h1>AlgorithmCompiler <span style="font-size: 1.2rem; color: var(--accent);">v1.4.0</span></h1>
+            <h1>AlgorithmCompiler <span style="font-size: 1.2rem; color: var(--accent);">v1.5.0</span></h1>
             <p>Interpréteur C++20 moderne, Machine Virtuelle à Bytecode optimisée, Analyseur Sémantique avec diagnostics visuels et Transpilateur Python 3 pour le standard officiel du Baccalauréat tunisien.</p>
             <div class="hero-badges">
-                <span class="badge green">✓ 214 Tests Unitaires (100% Succès)</span>
+                <span class="badge green">✓ 223 Tests Unitaires (100% Succès)</span>
                 <span class="badge blue">⚡ VM Bytecode (~78x plus rapide)</span>
                 <span class="badge orange">🎯 Standard Baccalauréat Tunisie</span>
                 <span class="badge">🐍 Transpilateur Python 3 (NumPy)</span>
@@ -449,7 +450,7 @@ algo.exe [OPTIONS]</code><button class="copy-btn" onclick="copyCode(this)">Copie
                     <tr>
                         <td><code>-v, --version</code></td>
                         <td>—</td>
-                        <td>Affiche la version (v1.4.0), le compilateur hôte, la plateforme et le standard C++20.</td>
+                        <td>Affiche la version (v1.5.0), le compilateur hôte, la plateforme et le standard C++20.</td>
                     </tr>
                     <tr>
                         <td><code>--check</code></td>
@@ -597,6 +598,11 @@ Remplir, Trier, Afficher : Procédure</code><button class="copy-btn" onclick="co
                         <td><code>f : Fichier d'Etudiant</code></td>
                         <td><code>Lire(f, e)</code>, <code>Ecrire(f, e)</code></td>
                     </tr>
+                    <tr>
+                        <td><strong>Pointeur Dynamique</strong></td>
+                        <td><code>p : ^Type</code> ou <code>Pointeur sur Type</code></td>
+                        <td><code>Allouer(p)</code>, <code>p^ ← 42</code>, <code>p.valeur ← 10</code>, <code>Liberer(p)</code>, <code>NIL</code></td>
+                    </tr>
                 </tbody>
             </table>
         </section>
@@ -620,6 +626,10 @@ Remplir, Trier, Afficher : Procédure</code><button class="copy-btn" onclick="co
                         <td><code>Et</code>, <code>Ou</code>, <code>Non</code></td>
                     </tr>
                     <tr>
+                        <td><strong>Déréférencement</strong></td>
+                        <td><code>^</code> postfixe (ex: <code>p^ ← 10</code>, <code>x ← p^</code>, équivalent direct <code>p.champ</code>)</td>
+                    </tr>
+                    <tr>
                         <td><strong>Affectation</strong></td>
                         <td><code>←</code> (Flèche Unicode), <code>&lt;-</code> (ASCII), <code>:=</code> (Pascal)</td>
                     </tr>
@@ -641,6 +651,7 @@ Remplir, Trier, Afficher : Procédure</code><button class="copy-btn" onclick="co
                 <button class="filter-btn" onclick="filterCategory('control', this)">Contrôle & Boucles</button>
                 <button class="filter-btn" onclick="filterCategory('subprogram', this)">Sous-programmes</button>
                 <button class="filter-btn" onclick="filterCategory('file', this)">Fichiers</button>
+                <button class="filter-btn" onclick="filterCategory('pointer', this)">Pointeurs</button>
             </div>
 
             <!-- Affectation -->
@@ -762,7 +773,7 @@ Fin</code><button class="copy-btn" onclick="copyCode(this)">Copier</button></pre
                 <h3 id="inst-files">6.7 Manipulation de Fichiers (`Ouvrir`, `Lire_Ligne`, `Aller_A`, `Fermer`)</h3>
                 <pre><code>// 1. Écriture dans un fichier texte ("w" = écriture, "a" = ajout, "r" = lecture)
 Ouvrir(f, "resultats.txt", "w")
-Ecrire(f, "Algorithme v1.4.0")
+Ecrire(f, "Algorithme v1.5.0")
 Fermer(f)
 
 // 2. Lecture ligne à ligne jusqu'à la fin de fichier
@@ -772,6 +783,25 @@ Tant Que Non Fin_Fichier(f) Faire
     Ecrire("Ligne :", ligne)
 Fin Tant Que
 Fermer(f)</code><button class="copy-btn" onclick="copyCode(this)">Copier</button></pre>
+            </div>
+
+            <!-- Pointeurs et Mémoire Dynamique -->
+            <div class="instruction-item" data-category="pointer">
+                <h3 id="inst-pointers">6.8 Gestion Dynamique de Mémoire (`Allouer`, `Liberer`, `NIL`)</h3>
+                <p>Allocation dynamique sur le tas, passage de références, piles, files, listes chaînées et arbres :</p>
+                <pre><code>// 1. Déclaration et initialisation
+p ← NIL
+
+// 2. Allocation dynamique sur le tas
+Allouer(p)
+p^.valeur ← 42
+p^.suivant ← NIL
+
+// 3. Sucre syntaxique d'accès direct au champ (p.champ <=> p^.champ)
+p.valeur ← 100
+
+// 4. Libération de la mémoire (p redevient automatiquement NIL)
+Liberer(p)</code><button class="copy-btn" onclick="copyCode(this)">Copier</button></pre>
             </div>
         </section>
 

@@ -17,11 +17,16 @@ struct UnaryExpr;
 struct BinaryExpr;
 struct CallExpr;
 struct SetLiteralExpr;
+struct DerefExpr;
+struct NilExpr;
 
 // Forward declarations for Statements
 struct AssignStmt;
 struct ArrayAssignStmt;
 struct MemberAssignStmt;
+struct DerefAssignStmt;
+struct AllocStmt;
+struct FreeStmt;
 struct WriteStmt;
 struct ReadStmt;
 struct IfStmt;
@@ -44,13 +49,18 @@ enum class ExprKind {
     Unary,
     Binary,
     Call,
-    SetLiteral
+    SetLiteral,
+    Deref,
+    Nil
 };
 
 enum class StmtKind {
     Assign,
     ArrayAssign,
     MemberAssign,
+    DerefAssign,
+    Alloc,
+    Free,
     Write,
     Read,
     If,
@@ -77,6 +87,8 @@ public:
     virtual void visit(BinaryExpr& node) = 0;
     virtual void visit(CallExpr& node) = 0;
     virtual void visit(SetLiteralExpr& node) = 0;
+    virtual void visit(DerefExpr& node) = 0;
+    virtual void visit(NilExpr& node) = 0;
 };
 
 class StmtVisitor {
@@ -85,6 +97,9 @@ public:
     virtual void visit(AssignStmt& node) = 0;
     virtual void visit(ArrayAssignStmt& node) = 0;
     virtual void visit(MemberAssignStmt& node) = 0;
+    virtual void visit(DerefAssignStmt& node) = 0;
+    virtual void visit(AllocStmt& node) = 0;
+    virtual void visit(FreeStmt& node) = 0;
     virtual void visit(WriteStmt& node) = 0;
     virtual void visit(ReadStmt& node) = 0;
     virtual void visit(IfStmt& node) = 0;
@@ -193,6 +208,18 @@ struct SetLiteralExpr : public Expr {
     void accept(ExprVisitor& visitor) override { visitor.visit(*this); }
 };
 
+struct DerefExpr : public Expr {
+    std::shared_ptr<Expr> target;
+    DerefExpr(std::shared_ptr<Expr> tgt, int line = -1)
+        : Expr(ExprKind::Deref, line), target(std::move(tgt)) {}
+    void accept(ExprVisitor& visitor) override { visitor.visit(*this); }
+};
+
+struct NilExpr : public Expr {
+    NilExpr(int line = -1) : Expr(ExprKind::Nil, line) {}
+    void accept(ExprVisitor& visitor) override { visitor.visit(*this); }
+};
+
 // Base Statement
 struct Stmt {
     StmtKind kind;
@@ -230,6 +257,28 @@ struct MemberAssignStmt : public Stmt {
     std::shared_ptr<Expr> value;
     MemberAssignStmt(std::shared_ptr<Expr> t, std::string m, std::shared_ptr<Expr> v, int line = -1)
         : Stmt(StmtKind::MemberAssign, line), target(std::move(t)), member(std::move(m)), value(std::move(v)) {}
+    void accept(StmtVisitor& visitor) override { visitor.visit(*this); }
+};
+
+struct DerefAssignStmt : public Stmt {
+    std::shared_ptr<Expr> target;
+    std::shared_ptr<Expr> value;
+    DerefAssignStmt(std::shared_ptr<Expr> t, std::shared_ptr<Expr> v, int line = -1)
+        : Stmt(StmtKind::DerefAssign, line), target(std::move(t)), value(std::move(v)) {}
+    void accept(StmtVisitor& visitor) override { visitor.visit(*this); }
+};
+
+struct AllocStmt : public Stmt {
+    std::shared_ptr<Expr> target;
+    AllocStmt(std::shared_ptr<Expr> t, int line = -1)
+        : Stmt(StmtKind::Alloc, line), target(std::move(t)) {}
+    void accept(StmtVisitor& visitor) override { visitor.visit(*this); }
+};
+
+struct FreeStmt : public Stmt {
+    std::shared_ptr<Expr> target;
+    FreeStmt(std::shared_ptr<Expr> t, int line = -1)
+        : Stmt(StmtKind::Free, line), target(std::move(t)) {}
     void accept(StmtVisitor& visitor) override { visitor.visit(*this); }
 };
 
@@ -350,7 +399,8 @@ enum class TypeKind {
     FileText,
     FileData,
     Enum,
-    Subrange
+    Subrange,
+    Pointer
 };
 
 struct VarDecl;

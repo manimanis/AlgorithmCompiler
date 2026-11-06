@@ -24,6 +24,10 @@ const char* opCodeName(OpCode op) {
         case OpCode::OP_REF_ARRAY: return "OP_REF_ARRAY";
         case OpCode::OP_REF_ARRAY2D: return "OP_REF_ARRAY2D";
         case OpCode::OP_REF_MEMBER: return "OP_REF_MEMBER";
+        case OpCode::OP_REF_DEREF: return "OP_REF_DEREF";
+        case OpCode::OP_DEREF: return "OP_DEREF";
+        case OpCode::OP_ALLOC_PTR: return "OP_ALLOC_PTR";
+        case OpCode::OP_FREE_PTR: return "OP_FREE_PTR";
         case OpCode::OP_SET_LVALUE: return "OP_SET_LVALUE";
         case OpCode::OP_ADD: return "OP_ADD";
         case OpCode::OP_SUB: return "OP_SUB";
@@ -236,6 +240,13 @@ size_t Chunk::disassembleInstruction(size_t offset) const {
             uint32_t fIdx = readUint32(tempIp);
             nextOffset = tempIp;
             std::cout << "field: " << (fIdx < names.size() ? names[fIdx] : "?");
+            break;
+        }
+        case OpCode::OP_ALLOC_PTR: {
+            size_t tempIp = nextOffset;
+            uint32_t tIdx = readUint32(tempIp);
+            nextOffset = tempIp;
+            std::cout << "type: " << (tIdx < names.size() ? names[tIdx] : "?");
             break;
         }
         case OpCode::OP_READ_RECORD: {

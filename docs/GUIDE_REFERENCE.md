@@ -1,6 +1,6 @@
 # 📖 Manuel de Référence Complet & Guide d'Utilisation
 
-**AlgorithmCompiler v1.4.0**  
+**AlgorithmCompiler v1.5.0**  
 *Compilateur C++20, Interpréteur, Machine Virtuelle à Bytecode et Transpilateur Python pour le Pseudo-code Algorithmique du Baccalauréat Tunisien.*
 
 ---
@@ -28,12 +28,14 @@
    - [Matrices 2D](#matrices-2d)
    - [Enregistrements (Records) et Structures Imbriquées](#enregistrements-records-et-structures-imbriquées)
    - [Fichiers Textes & Fichiers Typés](#fichiers-textes--fichiers-typés)
+   - [Pointeurs et Structures Dynamiques](#pointeurs-et-structures-dynamiques)
 5. [Opérateurs et Expressions](#5-opérateurs-et-expressions)
    - [Opérateurs Arithmétiques](#opérateurs-arithmétiques)
    - [Opérateurs de Comparaison / Relationnels](#opérateurs-de-comparaison--relationnels)
    - [Opérateurs Logiques](#opérateurs-logiques)
    - [Opérateur d'Affectation](#opérateur-daffectation)
    - [Opérateurs d'Appartenance et d'Intervalle](#opérateurs-dappartenance-et-dintervalle)
+   - [Opérateur de Déréférencement](#opérateur-de-déréférencement)
 6. [Toutes les Instructions Supportées](#6-toutes-les-instructions-supportées)
    - [6.1 Affectation](#61-affectation)
    - [6.2 Entrées / Sorties Console (`Ecrire`, `Lire`)](#62-entrées--sorties-console-ecrire-lire)
@@ -44,6 +46,7 @@
    - [6.7 Boucle Répéter (`Répéter ... Jusqu'à`)](#67-boucle-répéter-répéter--jusquà)
    - [6.8 Sous-programmes (`Procédure`, `Fonction`, `Retourner`)](#68-sous-programmes-procédure-fonction-retourner)
    - [6.9 Manipulation de Fichiers (`Ouvrir`, `Fermer`, `Lire_Ligne`, `Aller_A`)](#69-manipulation-de-fichiers-ouvrir-fermer-lire_ligne-aller_a)
+   - [6.10 Gestion Dynamique de Mémoire (`Allouer`, `Liberer`)](#610-gestion-dynamique-de-mémoire-allouer-liberer)
 7. [Bibliothèque Standard (Fonctions Prédéfinies)](#7-bibliothèque-standard-fonctions-prédéfinies)
    - [Fonctions Mathématiques](#fonctions-mathématiques)
    - [Fonctions de Manipulation de Chaînes & Caractères](#fonctions-de-manipulation-de-chaînes--caractères)
@@ -52,6 +55,7 @@
 8. [Analyseur Sémantique & Messages d'Erreur](#8-analyseur-sémantique--messages-derreur)
 9. [Transpilateur Python 3 (`--to-python`)](#9-transpilateur-python-3---to-python)
 10. [Machine Virtuelle & Bytecode (`--vm`, `--dump-bytecode`)](#10-machine-virtuelle--bytecode---vm---dump-bytecode)
+11. [Exemples de Structures Dynamiques](#11-exemples-de-structures-dynamiques)
 
 ---
 
@@ -64,7 +68,7 @@ Développé en **C++20 moderne**, il réunit :
 - Un **interpréteur d'AST** haute précision reposant sur le patron Visiteur.
 - Une **Machine Virtuelle à Bytecode (VM)** avec optimiseur peephole et fast-paths optimisés pour des performances d'exécution maximales.
 - Un **transpilateur Python 3** produisant un code propre, idiomatique et sans dépendances superflues.
-- Une suite complète de **214 tests unitaires** couvrant l'ensemble du programme officiel et les sujets récents du Baccalauréat.
+- Une suite complète de **223 tests unitaires** couvrant l'ensemble du programme officiel et les sujets récents du Baccalauréat.
 
 ---
 
@@ -293,6 +297,34 @@ e : Eleve
 - **Fichier Texte** : Séquence de lignes textuelles manipulables avec `Ouvrir`, `Lire_Ligne`, `Ecrire`, `Fin_Fichier`, `Fermer`.
 - **Fichier de Données Typé (`Fichier d'<Type>`)** : Stocke directement des enregistrements ou des valeurs binaires avec accès direct possible via `Aller_A` et `Position_Fichier`.
 
+### 4.8 Pointeurs et Structures Dynamiques
+
+Le langage supporte les pointeurs typés permettant l'allocation dynamique sur le tas (heap) et la création de structures de données récursives (listes chaînées simples/doubles, piles, files, arbres, graphes).
+
+#### Syntaxe de Déclaration
+- Syntaxe standard : `p : ^Type`
+- Syntaxe explicite équivalente : `p : Pointeur sur Type`
+- Valeur nulle : constante `NIL` (alias acceptés : `NULL`, `NUL`).
+
+```algorithme
+TDNT
+Noeud = Enregistrement
+    valeur : entier
+    suivant : ^Noeud
+Fin
+
+TDO
+tete : ^Noeud
+p : Pointeur sur Noeud
+val_ptr : ^entier
+```
+
+#### Caractéristiques sémantiques
+- **Déréférencement explicite** : `p^` permet d'accéder à la valeur ou à la structure pointée.
+- **Accès direct aux champs (Sucre syntaxique)** : `p.champ` est équivalent à `p^.champ`.
+- **Partage et sémantique par référence** : Contrairement aux enregistrements statiques copiés par valeur, l'affectation `q ← p` copie l'adresse mémoire du tas. Toute modification effectuée via `q^` ou `q.champ` se répercute immédiatement sur `p^`.
+- **Sécurité à l'exécution** : Toute tentative de déréférencement d'un pointeur `NIL` ou non initialisé déclenche une erreur à l'exécution explicite (`Déréférencement d'un pointeur NIL ou non initialisé`).
+
 ---
 
 ## 5. Opérateurs et Expressions
@@ -350,6 +382,13 @@ somme := somme + x
   Si carac dans ["A" .. "Z"] Alors ...
   ```
 - **Intervalle** : `..` (ex. `1 .. 10`).
+
+### 5.6 Opérateur de Déréférencement (`^`)
+
+L'opérateur postfixe `^` permet d'accéder au contenu de la case mémoire allouée et pointée par un pointeur :
+- En lecture d'expression : `x ← p^` ou `x ← p^.valeur`.
+- En modification (L-value) : `p^ ← 42` ou `p^.valeur ← 10`.
+- Équivalence de commodité : `p.valeur` est automatiquement converti en `p^.valeur`.
 
 ---
 
@@ -565,6 +604,25 @@ Fermer(f)
 
 ---
 
+### 6.10 Gestion Dynamique de Mémoire (`Allouer`, `Liberer`)
+
+| Procédure | Description | Exemple |
+| :--- | :--- | :--- |
+| `Allouer(p)` | Alloue un nouveau bloc mémoire sur le tas selon le type de base pointé par `p` et stocke l'adresse résultante dans la variable `p`. | `Allouer(nouveau_noeud)` |
+| `Liberer(p)` | Libère le bloc mémoire sur le tas pointé par `p` et réaffecte automatiquement `NIL` à `p`. | `Liberer(noeud)` |
+
+Exemple :
+```algorithme
+Allouer(p)
+p^.valeur ← 42
+p^.suivant ← NIL
+Ecrire("Valeur allouée :", p.valeur)
+Liberer(p)
+// p est désormais égal à NIL
+```
+
+---
+
 ## 7. Bibliothèque Standard (Fonctions Prédéfinies)
 
 ### Fonctions Mathématiques
@@ -650,6 +708,10 @@ AlgorithmCompiler intègre un convertisseur vers **Python 3 moderne et idiomatiq
 | `t : Tableau de 10 entier` | `t = np.zeros(10, dtype=int)` |
 | `m : Tableau de 3, 3 de réel` | `m = np.zeros((3, 3), dtype=float)` |
 | `e : Etudiant` (Enregistrement) | `e = {'nom': "", 'age': 0, 'moyenne': 0.0}` |
+| `p : ^Noeud` / `Allouer(p)` | `p = None` / `p = {'valeur': 0, 'suivant': None}` |
+| `p.valeur` / `p^` | `p['valeur']` / `p[0]` |
+| `Liberer(p)` | `p = None` |
+| `NIL` / `NULL` | `None` |
 | `Répéter ... Jusqu'à condition` | `condition = False` / `while not condition:` *(Pas de `while True: break`)* |
 | `Pos(s, ch)` | `ch.find(s)` |
 | `Majus(ch)` / `Minus(ch)` | `ch.upper()` / `ch.lower()` |
@@ -663,6 +725,7 @@ AlgorithmCompiler intègre un convertisseur vers **Python 3 moderne et idiomatiq
 La Machine Virtuelle à Bytecode d'AlgorithmCompiler offre des gains de performance de plus de **75x** par rapport à l'évaluation pure d'AST :
 - **Fast-paths 1D pour tableaux** : Opcodes spécialisés (`OP_ARRAY_GET_GLOBAL`, `OP_ARRAY_SET_GLOBAL`, `OP_ARRAY_GET_LOCAL`, `OP_ARRAY_SET_LOCAL`) éliminant toute copie inutile.
 - **Fast-paths arithmétiques** : Traitement direct inliné des opérandes entiers 64-bit pour `+`, `-`, `*`, `div`, `mod`, `<`.
+- **Gestion des pointeurs et tas VM** : Opcodes spécialisés (`OP_ALLOC_PTR`, `OP_FREE_PTR`, `OP_DEREF`, `OP_REF_DEREF`) pour l'allocation sur le tas, le déréférencement sécurisé et la détection d'accès `NIL`.
 - **Optimiseur Peephole** : Élimination des instructions inutiles et chaînage direct des sauts conditionnels (`OP_JUMP_IF_FALSE`).
 - **Pliage de constantes (Constant Folding)** : Évaluation au moment de la compilation des sous-expressions statiques (ex. `2 * 3.14 * 10`).
 
@@ -673,4 +736,145 @@ algo.exe mon_programme.alg --dump-bytecode
 
 ---
 
-*Document généré pour AlgorithmCompiler v1.4.0 — Standard Algorithmique du Baccalauréat Tunisien.*
+## 11. Exemples de Structures Dynamiques
+
+### 11.1 Pile Dynamique (LIFO - Dernier Entré, Premier Sorti)
+
+```algorithme
+Algorithme TestPile
+TDNT
+Element = Enregistrement
+    valeur : entier
+    suivant : ^Element
+Fin
+Pile = ^Element
+
+Procédure Empiler(@p : Pile; val : entier)
+Début
+    Allouer(nouveau)
+    nouveau.valeur ← val
+    nouveau.suivant ← p
+    p ← nouveau
+Fin
+TDOL
+nouveau : Pile
+
+Procédure Depiler(@p : Pile; @val : entier)
+Début
+    Si p ≠ NIL Alors
+        val ← p.valeur
+        temp ← p
+        p ← p.suivant
+        Liberer(temp)
+    Fin Si
+Fin
+TDOL
+temp : Pile
+
+Début
+    sommet ← NIL
+    Empiler(sommet, 10)
+    Empiler(sommet, 20)
+    Empiler(sommet, 30)
+
+    Tant Que sommet ≠ NIL Faire
+        Depiler(sommet, v)
+        Ecrire("Dépilé :", v)
+    Fin Tant Que
+Fin
+TDO
+sommet : Pile
+v : entier
+```
+
+### 11.2 File Dynamique (FIFO - Premier Entré, Premier Sorti)
+
+```algorithme
+Algorithme TestFile
+TDNT
+Noeud = Enregistrement
+    donnee : entier
+    suivant : ^Noeud
+Fin
+File = Enregistrement
+    tete : ^Noeud
+    queue : ^Noeud
+Fin
+
+Procédure Enfiler(@f : File; val : entier)
+Début
+    Allouer(nouveau)
+    nouveau.donnee ← val
+    nouveau.suivant ← NIL
+    Si f.tete = NIL Alors
+        f.tete ← nouveau
+        f.queue ← nouveau
+    Sinon
+        f.queue.suivant ← nouveau
+        f.queue ← nouveau
+    Fin Si
+Fin
+TDOL
+nouveau : ^Noeud
+
+Début
+    f.tete ← NIL
+    f.queue ← NIL
+    Enfiler(f, 100)
+    Enfiler(f, 200)
+    Ecrire("Tête :", f.tete.donnee, "Queue :", f.queue.donnee)
+Fin
+TDO
+f : File
+```
+
+### 11.3 Arbre Binaire de Recherche (ABR)
+
+```algorithme
+Algorithme TestArbre
+TDNT
+NoeudArbre = Enregistrement
+    valeur : entier
+    gauche : ^NoeudArbre
+    droite : ^NoeudArbre
+Fin
+Arbre = ^NoeudArbre
+
+Procédure Inserer(@racine : Arbre; val : entier)
+Début
+    Si racine = NIL Alors
+        Allouer(racine)
+        racine.valeur ← val
+        racine.gauche ← NIL
+        racine.droite ← NIL
+    Sinon Si val < racine.valeur Alors
+        Inserer(racine.gauche, val)
+    Sinon
+        Inserer(racine.droite, val)
+    Fin Si
+Fin
+
+Procédure AfficherInfixe(racine : Arbre)
+Début
+    Si racine ≠ NIL Alors
+        AfficherInfixe(racine.gauche)
+        Ecrire(racine.valeur)
+        AfficherInfixe(racine.droite)
+    Fin Si
+Fin
+
+Début
+    racine ← NIL
+    Inserer(racine, 50)
+    Inserer(racine, 30)
+    Inserer(racine, 70)
+    Ecrire("Parcours Infixe :")
+    AfficherInfixe(racine)
+Fin
+TDO
+racine : Arbre
+```
+
+---
+
+*Document généré pour AlgorithmCompiler v1.5.0 — Standard Algorithmique du Baccalauréat Tunisien.*

@@ -69,6 +69,8 @@ private:
     std::shared_ptr<Stmt> parseRepeat();
     std::shared_ptr<Stmt> parseReturn();
     std::shared_ptr<Stmt> parseSwitch();
+    std::shared_ptr<Stmt> parseAlloc();
+    std::shared_ptr<Stmt> parseFree();
     bool isCaseHeader();
 
     // Expressions

@@ -53,26 +53,42 @@ Value Value::mod(const Value& other) const {
 }
 
 bool Value::equals(const Value& other) const {
-    if (isNumber() && other.isNumber()) {
-        if (type == ValueType::Real || other.type == ValueType::Real) {
-            return std::abs(asReal() - other.asReal()) < 1e-9;
+    const Value* a = (type == ValueType::Ref && refPtr) ? refPtr : this;
+    const Value* b = (other.type == ValueType::Ref && other.refPtr) ? other.refPtr : &other;
+
+    if (a->type == ValueType::Pointer || b->type == ValueType::Pointer) {
+        if (a->type == ValueType::Pointer && b->type == ValueType::Pointer) {
+            return a->ptrVal == b->ptrVal;
         }
-        return asInt() == other.asInt();
+        if (a->type == ValueType::Pointer && b->type == ValueType::Null) {
+            return a->ptrVal == nullptr;
+        }
+        if (a->type == ValueType::Null && b->type == ValueType::Pointer) {
+            return b->ptrVal == nullptr;
+        }
+        return false;
     }
-    if (type == ValueType::String && other.type == ValueType::String) {
-        return strVal == other.strVal;
+
+    if (a->isNumber() && b->isNumber()) {
+        if (a->type == ValueType::Real || b->type == ValueType::Real) {
+            return std::abs(a->asReal() - b->asReal()) < 1e-9;
+        }
+        return a->asInt() == b->asInt();
     }
-    if (type == ValueType::Bool && other.type == ValueType::Bool) {
-        return boolVal == other.boolVal;
+    if (a->type == ValueType::String && b->type == ValueType::String) {
+        return a->strVal == b->strVal;
     }
-    if (type == ValueType::Null && other.type == ValueType::Null) {
+    if (a->type == ValueType::Bool && b->type == ValueType::Bool) {
+        return a->boolVal == b->boolVal;
+    }
+    if (a->type == ValueType::Null && b->type == ValueType::Null) {
         return true;
     }
-    if (type == ValueType::Record && other.type == ValueType::Record) {
-        if (recVal.size() != other.recVal.size()) return false;
-        for (const auto& kv : recVal) {
-            auto it = other.recVal.find(kv.first);
-            if (it == other.recVal.end()) return false;
+    if (a->type == ValueType::Record && b->type == ValueType::Record) {
+        if (a->recVal.size() != b->recVal.size()) return false;
+        for (const auto& kv : a->recVal) {
+            auto it = b->recVal.find(kv.first);
+            if (it == b->recVal.end()) return false;
             if (!kv.second.equals(it->second)) return false;
         }
         return true;

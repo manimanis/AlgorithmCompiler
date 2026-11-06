@@ -241,6 +241,7 @@ static void optimizePeephole(Chunk& chunk) {
                 case OpCode::OP_ARRAY_SET_LOCAL:
                 case OpCode::OP_ARRAY_GET_REF:
                 case OpCode::OP_ARRAY_SET_REF:
+                case OpCode::OP_ALLOC_PTR:
                     ip += 5;
                     break;
                 case OpCode::OP_READ_RECORD:
@@ -291,6 +292,7 @@ void BytecodeCompiler::compileBlock(const std::vector<std::shared_ptr<Stmt>>& st
 }
 
 BytecodeProgram BytecodeCompiler::compile(const Program& prog) {
+    currentProg_ = &prog;
     BytecodeProgram result;
     result.name = prog.name;
     result.typeDecls = prog.typeDecls;
@@ -319,6 +321,7 @@ BytecodeProgram BytecodeCompiler::compile(const Program& prog) {
 
     // Compile procedures
     for (const auto& proc : prog.procedures) {
+        currentSubroutineName_ = normalize(proc.name);
         BytecodeFunction bf;
         bf.name = proc.name;
         bf.isProcedure = true;
@@ -364,6 +367,7 @@ BytecodeProgram BytecodeCompiler::compile(const Program& prog) {
 
     // Compile functions
     for (const auto& func : prog.functions) {
+        currentSubroutineName_ = normalize(func.name);
         BytecodeFunction bf;
         bf.name = func.name;
         bf.isProcedure = false;
@@ -413,6 +417,7 @@ BytecodeProgram BytecodeCompiler::compile(const Program& prog) {
     // Compile main body
     locals_.clear();
     isInsideSubroutine_ = false;
+    currentSubroutineName_.clear();
     currentLocalVars_ = nullptr;
     currentChunk_ = &result.mainChunk;
 
@@ -538,6 +543,104 @@ void BytecodeCompiler::visit(MemberAssignStmt& node) {
             emitUint32(addName(varName));
         }
     }
+}
+
+std::string BytecodeCompiler::resolveExprType(const std::shared_ptr<Expr>& expr) const {
+    if (!expr) return "";
+    if (auto varExpr = std::dynamic_pointer_cast<VariableExpr>(expr)) {
+        std::string vNorm = normalize(varExpr->name);
+        if (currentProg_ && !currentSubroutineName_.empty()) {
+            for (const auto& proc : currentProg_->procedures) {
+                if (normalize(proc.name) == currentSubroutineName_) {
+                    for (const auto& p : proc.params) {
+                        if (normalize(p.name) == vNorm) return p.paramType;
+                    }
+                    for (const auto& vd : proc.localVars) {
+                        for (const auto& n : vd.names) {
+                            if (normalize(n) == vNorm) return vd.varType;
+                        }
+                    }
+                }
+            }
+            for (const auto& func : currentProg_->functions) {
+                if (normalize(func.name) == currentSubroutineName_) {
+                    for (const auto& p : func.params) {
+                        if (normalize(p.name) == vNorm) return p.paramType;
+                    }
+                    for (const auto& vd : func.localVars) {
+                        for (const auto& n : vd.names) {
+                            if (normalize(n) == vNorm) return vd.varType;
+                        }
+                    }
+                }
+            }
+        }
+        for (const auto& vd : varDecls_) {
+            for (const auto& n : vd.names) {
+                if (normalize(n) == vNorm) return vd.varType;
+            }
+        }
+        return "";
+    }
+    if (auto mem = std::dynamic_pointer_cast<MemberAccessExpr>(expr)) {
+        std::string objType = resolveExprType(mem->object);
+        if (!objType.empty() && objType[0] == '^') objType = objType.substr(1);
+        auto it = typeMap_.find(normalize(objType));
+        if (it != typeMap_.end()) {
+            for (const auto& f : it->second.fields) {
+                for (const auto& n : f->names) {
+                    if (normalize(n) == normalize(mem->member)) return f->varType;
+                }
+            }
+        }
+        return "";
+    }
+    if (auto deref = std::dynamic_pointer_cast<DerefExpr>(expr)) {
+        std::string t = resolveExprType(deref->target);
+        if (!t.empty() && t[0] == '^') return t.substr(1);
+        auto it = typeMap_.find(normalize(t));
+        if (it != typeMap_.end() && it->second.kind == TypeKind::Pointer) {
+            return it->second.elemType;
+        }
+        return "";
+    }
+    return "";
+}
+
+std::string BytecodeCompiler::resolvePointeeType(const std::shared_ptr<Expr>& expr) const {
+    std::string t = resolveExprType(expr);
+    if (!t.empty() && t[0] == '^') return t.substr(1);
+    std::string tNorm = normalize(t);
+    if (tNorm.find("pointeur sur ") == 0) return t.substr(13);
+    if (tNorm.find("pointeur de ") == 0) return t.substr(12);
+    auto it = typeMap_.find(tNorm);
+    if (it != typeMap_.end() && it->second.kind == TypeKind::Pointer) {
+        return it->second.elemType;
+    }
+    return t;
+}
+
+void BytecodeCompiler::visit(DerefAssignStmt& node) {
+    auto derefExpr = std::make_shared<DerefExpr>(node.target, node.line);
+    compileRefExpr(derefExpr);
+    compileExpr(node.value);
+    emitOp(OpCode::OP_SET_LVALUE);
+}
+
+void BytecodeCompiler::visit(AllocStmt& node) {
+    if (!compileRefExpr(node.target)) {
+        throw AlgoError("Cible d'allocation non valide", node.line);
+    }
+    std::string pointeeType = resolvePointeeType(node.target);
+    emitOp(OpCode::OP_ALLOC_PTR);
+    emitUint32(addName(pointeeType));
+}
+
+void BytecodeCompiler::visit(FreeStmt& node) {
+    if (!compileRefExpr(node.target)) {
+        throw AlgoError("Cible de libération non valide", node.line);
+    }
+    emitOp(OpCode::OP_FREE_PTR);
 }
 
 void BytecodeCompiler::visit(WriteStmt& node) {
@@ -799,6 +902,14 @@ bool BytecodeCompiler::compileRefExpr(const std::shared_ptr<Expr>& expr) {
         return true;
     }
 
+    if (auto derefExpr = std::dynamic_pointer_cast<DerefExpr>(expr)) {
+        if (!compileRefExpr(derefExpr->target)) {
+            compileExpr(derefExpr->target);
+        }
+        emitOp(OpCode::OP_REF_DEREF);
+        return true;
+    }
+
     return false;
 }
 
@@ -824,8 +935,9 @@ void BytecodeCompiler::visit(CallStmt& node) {
         }
     }
 
+    bool isUserProc = (paramByRefMap_.find(norm) != paramByRefMap_.end());
     auto bit = builtinIds_.find(norm);
-    if (bit != builtinIds_.end()) {
+    if (!isUserProc && bit != builtinIds_.end()) {
         for (const auto& arg : node.args) {
             compileExpr(arg);
         }
@@ -1097,6 +1209,16 @@ void BytecodeCompiler::visit(SetLiteralExpr& node) {
     }
     emitOp(OpCode::OP_MAKE_SET);
     emitUint32(static_cast<uint32_t>(node.elements.size()));
+}
+
+void BytecodeCompiler::visit(DerefExpr& node) {
+    compileExpr(node.target);
+    emitOp(OpCode::OP_DEREF);
+}
+
+void BytecodeCompiler::visit(NilExpr& node) {
+    emitOp(OpCode::OP_CONST);
+    emitUint32(addConstant(Value::makeNil()));
 }
 
 } // namespace algo

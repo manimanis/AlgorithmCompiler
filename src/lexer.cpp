@@ -9,11 +9,12 @@ static const std::unordered_set<std::string> KEYWORDS = {
     "fonction", "debut", "type", "var", "retourner", "et", "ou",
     "non", "vrai", "faux", "ecrire", "ecrire_nl", "lire", "lire_ligne",
     "algorithme", "tdo", "tdnt", "tdol", "tdog", "objet", "const", "constante", "constantes",
-    "finsi", "fin_si", "finpour", "fin_pour", "fintantque", "tantque", "selon", "finselon", "fin_selon", "cas", "autrement"
+    "finsi", "fin_si", "finpour", "fin_pour", "fintantque", "tantque", "selon", "finselon", "fin_selon", "cas", "autrement",
+    "allouer", "liberer", "nil", "null", "nul", "pointeur", "sur"
 };
 
 static const std::unordered_set<std::string> TYPES = {
-    "entier", "reel", "caractere", "chaine", "booleen", "tableau", "matrice", "enregistrement", "fichier"
+    "entier", "reel", "caractere", "chaine", "booleen", "tableau", "matrice", "enregistrement", "fichier", "pointeur"
 };
 
 Lexer::Lexer(std::string source)

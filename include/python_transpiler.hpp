@@ -21,6 +21,7 @@ private:
 
     std::map<std::string, TypeDecl> typeMap_;
     std::map<std::string, std::string> varTypeMap_;
+    std::map<std::string, std::string> currentLocalTypes_;
     std::map<std::string, ProcedureDecl> procMap_;
     std::map<std::string, FunctionDecl> funcMap_;
 
@@ -46,12 +47,21 @@ private:
 
     void transpileBlock(const std::vector<std::shared_ptr<Stmt>>& stmts, std::ostringstream& ss);
     void transpileStmt(const std::shared_ptr<Stmt>& stmt, std::ostringstream& ss);
-    std::string transpileExpr(const std::shared_ptr<Expr>& expr);
+    std::string transpileExpr(const std::shared_ptr<Expr>& expr, int parentPrec = 0, bool isRight = false);
+
+    bool isWriteToFile(const std::shared_ptr<WriteStmt>& w);
+    bool isReadFromFile(const std::shared_ptr<ReadStmt>& rd);
+    std::string buildPromptString(const std::vector<std::shared_ptr<Expr>>& args);
+    void transpilePromptRead(const std::shared_ptr<WriteStmt>& w, const std::shared_ptr<ReadStmt>& rd, std::ostringstream& ss);
+
+    std::string resolveBaseType(const std::string& typeName);
+    int getExprPrecedence(const std::shared_ptr<Expr>& expr);
+    std::string formatRangeEnd(const std::shared_ptr<Expr>& endExpr, int delta);
 
     std::string getInitValuePy(const TypeSpec& ts, const std::string& typeName = "");
     std::string getArrayInitPy(int size, const std::string& elemType);
     std::string getMatrixInitPy(int rows, int cols, const std::string& elemType);
-    std::string transpileReadInput(const std::string& typeName);
+    std::string transpileReadInput(const std::string& typeName, const std::string& prompt = "");
     std::string getExprType(const std::shared_ptr<Expr>& expr);
 };
 

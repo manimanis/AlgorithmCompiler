@@ -68,6 +68,8 @@ public:
 
     Value getDefaultValue(const std::string& typeName) const;
     Value getDefaultValue(const TypeSpec& ts, const std::string& varName = "") const;
+    std::string resolveExprType(const std::shared_ptr<Expr>& expr) const;
+    std::string resolvePointeeType(const std::shared_ptr<Expr>& expr) const;
     void assignToLValue(const std::shared_ptr<Expr>& lhs, const Value& val, const std::shared_ptr<Environment>& env, int line = -1);
     void writeFileData(AlgoFile& f, const Value& val);
     Value readFileData(AlgoFile& f);
@@ -76,6 +78,9 @@ public:
     void visit(AssignStmt& node) override;
     void visit(ArrayAssignStmt& node) override;
     void visit(MemberAssignStmt& node) override;
+    void visit(DerefAssignStmt& node) override;
+    void visit(AllocStmt& node) override;
+    void visit(FreeStmt& node) override;
     void visit(WriteStmt& node) override;
     void visit(ReadStmt& node) override;
     void visit(IfStmt& node) override;
@@ -99,6 +104,8 @@ public:
     void visit(BinaryExpr& node) override;
     void visit(CallExpr& node) override;
     void visit(SetLiteralExpr& node) override;
+    void visit(DerefExpr& node) override;
+    void visit(NilExpr& node) override;
 
 private:
     InterpreterOptions options_;
@@ -107,6 +114,8 @@ private:
     std::unordered_map<std::string, int64_t> enumOrdinals_;
     std::unordered_map<std::string, ProcedureDecl> procedures_;
     std::unordered_map<std::string, FunctionDecl> functions_;
+    std::vector<VarDecl> varDecls_;
+    std::string currentSubroutine_;
     std::map<std::string, std::shared_ptr<AlgoFile>> openFiles_;
 
     std::vector<std::string> output_;

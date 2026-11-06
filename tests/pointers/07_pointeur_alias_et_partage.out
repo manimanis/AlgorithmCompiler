@@ -1,0 +1,5 @@
+p2 initial: 100 200
+p1 apres modif p2: 999
+p1 et p2 sont egaux
+p1 et p2 sont differents
+p1^.x = 999 p2^.x = 555

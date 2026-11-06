@@ -33,7 +33,7 @@ Le test runner `run_tests.exe` détecte et exécute automatiquement tout nouveau
 
 ---
 
-## Sommaire des Tests (119 algorithmes)
+## Sommaire des Tests (223 algorithmes)
 
 - [arithmetic](#arithmetic) (3 algorithmes) - Nombres premiers, somme des chiffres, nombres parfaits
 - [arrays](#arrays) (4 algorithmes) - Déclarations, accès et affectations de tableaux
@@ -48,6 +48,7 @@ Le test runner `run_tests.exe` détecte et exécute automatiquement tout nouveau
 - [integration3](#integration3) (3 algorithmes) - Gestion de drones, tri complet, révision
 - [integration4](#integration4) (6 algorithmes) - Manipulations avancées et algorithmes d'examen
 - [output](#output) (8 algorithmes) - Écritures avec séparateurs et paramètres de fin
+- [pointers](#pointers) (9 algorithmes) - Pointeurs, allocation dynamique Allouer/Liberer, listes, piles, files, arbres, graphes
 - [procedures](#procedures) (9 algorithmes) - Sous-programmes, portée locale, fonctions prédéfinies
 - [recursion](#recursion) (3 algorithmes) - Fibonacci récursif, Tours de Hanoï, PGCD récursif
 - [robustness](#robustness) (26 algorithmes) - Détection de boucles infinies, divisions par zéro, hors bornes, timeouts
@@ -175,6 +176,19 @@ Le test runner `run_tests.exe` détecte et exécute automatiquement tout nouveau
 | [`06_output_with_separator.alg`](./output/06_output_with_separator.alg) | Output with separator | 61 | 7 |
 | [`07_output_with_end_parameter.alg`](./output/07_output_with_end_parameter.alg) | Output with end parameter | 72 | 7 |
 | [`08_output_with_both_separator_and_end.alg`](./output/08_output_with_both_separator_and_end.alg) | Output with both separator and end | 83 | 10 |
+### pointers
+
+| Fichier | Test Source | Ligne | Lignes de code |
+| :--- | :--- | :---: | :---: |
+| [`01_pointeur_entier_allocation_liberation.alg`](./pointers/01_pointeur_entier_allocation_liberation.alg) | Allocation et libération de pointeur entier | 1 | 23 |
+| [`02_liste_chainee_simple.alg`](./pointers/02_liste_chainee_simple.alg) | Liste chaînée simple et parcours séquentiel | 1 | 48 |
+| [`03_pile_pointeur.alg`](./pointers/03_pile_pointeur.alg) | Pile dynamique LIFO (Empiler / Dépiler) | 1 | 54 |
+| [`04_file_pointeur.alg`](./pointers/04_file_pointeur.alg) | File dynamique FIFO (Enfiler / Défiler) | 1 | 63 |
+| [`05_liste_doublement_chainee.alg`](./pointers/05_liste_doublement_chainee.alg) | Liste doublement chaînée (précédent/suivant) | 1 | 66 |
+| [`06_arbre_binaire_recherche.alg`](./pointers/06_arbre_binaire_recherche.alg) | Arbre binaire de recherche (ABR) et parcours infixe | 1 | 58 |
+| [`07_pointeur_alias_et_partage.alg`](./pointers/07_pointeur_alias_et_partage.alg) | Partage de références sur le tas et mutation | 1 | 30 |
+| [`08_graphe_liste_adjacence.alg`](./pointers/08_graphe_liste_adjacence.alg) | Graphe représenté par listes d'adjacence dynamiques | 1 | 52 |
+| [`09_syntaxe_synonymes_pointeurs.alg`](./pointers/09_syntaxe_synonymes_pointeurs.alg) | Syntaxes synonymes (^T, Pointeur sur T, NIL, NULL) | 1 | 35 |
 ### procedures
 
 | Fichier | Test Source | Ligne | Lignes de code |

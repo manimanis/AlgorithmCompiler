@@ -92,6 +92,9 @@ Value VM::convertInput(const std::string& inputStr, const Value& currentVal) {
 }
 
 Value VM::getDefaultValue(const TypeSpec& ts, const std::string& varName) const {
+    if (ts.kind == TypeKind::Pointer) {
+        return Value::makeNil();
+    }
     if (ts.kind == TypeKind::Array1D) {
         Value elemDef = getDefaultValue(ts.elemType, varName);
         std::vector<Value> arr(ts.rows, elemDef);
@@ -123,6 +126,8 @@ Value VM::getDefaultValue(const TypeSpec& ts, const std::string& varName) const 
 
 Value VM::getDefaultValue(const std::string& typeName, const std::string& varName) const {
     std::string norm = normalize(typeName);
+    if (!norm.empty() && norm[0] == '^') return Value::makeNil();
+    if (norm.find("pointeur") == 0) return Value::makeNil();
     if (norm == "entier") return Value((int64_t)0);
     if (norm == "reel") return Value((double)0.0);
     if (norm == "booleen") return Value(false);
@@ -132,6 +137,9 @@ Value VM::getDefaultValue(const std::string& typeName, const std::string& varNam
     auto it = typeDefs_.find(norm);
     if (it != typeDefs_.end()) {
         const auto& td = it->second;
+        if (td.typeSpec.kind == TypeKind::Pointer) {
+            return Value::makeNil();
+        }
         if (td.typeSpec.kind != TypeKind::Simple) {
             return getDefaultValue(td.typeSpec, varName);
         }
@@ -854,10 +862,25 @@ void VM::run(const BytecodeProgram& prog) {
                 uint32_t fIdx = frame->chunk->readUint32(frame->ip);
                 const std::string& fieldName = frame->chunk->names[fIdx];
                 Value refVal = pop();
-                if (!refVal.isRef() || !refVal.refPtr || !refVal.refPtr->isRecord()) {
+                Value* recPtr = nullptr;
+                if (refVal.isRef() && refVal.refPtr) {
+                    if (refVal.refPtr->isPointer()) {
+                        if (!refVal.refPtr->ptrVal) {
+                            throw AlgoError("Déréférencement d'un pointeur NIL ou non alloué", curLine);
+                        }
+                        recPtr = refVal.refPtr->ptrVal.get();
+                    } else if (refVal.refPtr->isRecord()) {
+                        recPtr = refVal.refPtr;
+                    }
+                } else if (refVal.isPointer()) {
+                    if (!refVal.ptrVal) {
+                        throw AlgoError("Déréférencement d'un pointeur NIL ou non alloué", curLine);
+                    }
+                    recPtr = refVal.ptrVal.get();
+                }
+                if (!recPtr || !recPtr->isRecord()) {
                     throw AlgoError("Référence d'enregistrement invalide pour l'accès au champ", curLine);
                 }
-                Value* recPtr = refVal.refPtr;
                 auto it = recPtr->recVal.find(fieldName);
                 if (it != recPtr->recVal.end()) {
                     push(Value::makeRef(&it->second));
@@ -875,6 +898,62 @@ void VM::run(const BytecodeProgram& prog) {
                         push(Value::makeRef(&recPtr->recVal[fieldName]));
                     }
                 }
+                break;
+            }
+
+            case OpCode::OP_REF_DEREF: {
+                Value val = pop();
+                Value* ptr = nullptr;
+                if (val.isRef() && val.refPtr) {
+                    if (val.refPtr->type != ValueType::Pointer || !val.refPtr->ptrVal) {
+                        throw AlgoError("Déréférencement d'un pointeur NIL ou non alloué", curLine);
+                    }
+                    ptr = val.refPtr->ptrVal.get();
+                } else if (val.type == ValueType::Pointer) {
+                    if (!val.ptrVal) {
+                        throw AlgoError("Déréférencement d'un pointeur NIL ou non alloué", curLine);
+                    }
+                    ptr = val.ptrVal.get();
+                } else {
+                    throw AlgoError("Tentative de déréférencer une valeur non pointeur", curLine);
+                }
+                push(Value::makeRef(ptr));
+                break;
+            }
+
+            case OpCode::OP_DEREF: {
+                Value val = pop();
+                if (val.isRef() && val.refPtr) {
+                    val = *(val.refPtr);
+                }
+                if (val.type != ValueType::Pointer || !val.ptrVal) {
+                    throw AlgoError("Déréférencement d'un pointeur NIL ou non alloué", curLine);
+                }
+                push(*(val.ptrVal));
+                break;
+            }
+
+            case OpCode::OP_ALLOC_PTR: {
+                uint32_t typeNameIdx = frame->chunk->readUint32(frame->ip);
+                const std::string& typeName = frame->chunk->names[typeNameIdx];
+                Value refVal = pop();
+                if (!refVal.isRef() || !refVal.refPtr) {
+                    throw AlgoError("Cible d'allocation non valide", curLine);
+                }
+                Value initialVal = getDefaultValue(typeName, "");
+                *(refVal.refPtr) = Value::makePointer(std::make_shared<Value>(std::move(initialVal)));
+                break;
+            }
+
+            case OpCode::OP_FREE_PTR: {
+                Value refVal = pop();
+                if (!refVal.isRef() || !refVal.refPtr) {
+                    throw AlgoError("Cible de libération non valide", curLine);
+                }
+                if (refVal.refPtr->type == ValueType::Pointer) {
+                    refVal.refPtr->ptrVal.reset();
+                }
+                *(refVal.refPtr) = Value::makeNil();
                 break;
             }
 
@@ -1420,6 +1499,10 @@ void VM::run(const BytecodeProgram& prog) {
                 uint32_t fIdx = frame->chunk->readUint32(frame->ip);
                 const std::string& fieldName = frame->chunk->names[fIdx];
                 Value obj = pop();
+                if (obj.isPointer()) {
+                    if (!obj.ptrVal) throw AlgoError("Déréférencement d'un pointeur NIL ou non alloué", curLine);
+                    obj = *(obj.ptrVal);
+                }
                 if (!obj.isRecord()) throw AlgoError("Accès à un champ sur un non-enregistrement", curLine);
                 auto it = obj.recVal.find(fieldName);
                 if (it != obj.recVal.end()) {

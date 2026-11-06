@@ -469,8 +469,24 @@ SemanticAnalyzer::ExprTypeInfo SemanticAnalyzer::resolveExprTypeInfo(const std::
         }
         return info;
     }
+    if (auto deref = std::dynamic_pointer_cast<DerefExpr>(expr)) {
+        ExprTypeInfo tgtInfo = resolveExprTypeInfo(deref->target);
+        std::string pointee = tgtInfo.typeSpec.elemType.empty() ? (!tgtInfo.typeName.empty() && tgtInfo.typeName[0] == '^' ? tgtInfo.typeName.substr(1) : tgtInfo.typeName) : tgtInfo.typeSpec.elemType;
+        info.typeName = pointee;
+        auto it = typeMap_.find(normalize(pointee));
+        if (it != typeMap_.end()) {
+            info.typeSpec = it->second.typeSpec;
+        }
+        return info;
+    }
     if (auto mem = std::dynamic_pointer_cast<MemberAccessExpr>(expr)) {
         ExprTypeInfo objInfo = resolveExprTypeInfo(mem->object);
+        if (objInfo.typeSpec.kind == TypeKind::Pointer || (!objInfo.typeName.empty() && objInfo.typeName[0] == '^')) {
+            std::string pointee = objInfo.typeSpec.elemType.empty() ? objInfo.typeName.substr(1) : objInfo.typeSpec.elemType;
+            objInfo.typeName = pointee;
+            auto itP = typeMap_.find(normalize(pointee));
+            if (itP != typeMap_.end()) objInfo.typeSpec = itP->second.typeSpec;
+        }
         const std::vector<std::shared_ptr<VarDecl>>* fields = nullptr;
         if (!objInfo.typeSpec.fields.empty()) {
             fields = &objInfo.typeSpec.fields;
@@ -565,6 +581,10 @@ static void collectReadVars(const std::shared_ptr<Expr>& expr, std::set<std::str
         collectReadVars(mem->object, out);
         return;
     }
+    if (auto deref = std::dynamic_pointer_cast<DerefExpr>(expr)) {
+        collectReadVars(deref->target, out);
+        return;
+    }
     if (auto call = std::dynamic_pointer_cast<CallExpr>(expr)) {
         for (const auto& a : call->args) collectReadVars(a, out);
         return;
@@ -587,6 +607,18 @@ static void collectModifiedVars(const std::vector<std::shared_ptr<Stmt>>& stmts,
             }
         } else if (auto ma = std::dynamic_pointer_cast<MemberAssignStmt>(stmt)) {
             if (auto varExpr = std::dynamic_pointer_cast<VariableExpr>(ma->target)) {
+                out.insert(normalize(varExpr->name));
+            }
+        } else if (auto alloc = std::dynamic_pointer_cast<AllocStmt>(stmt)) {
+            if (auto varExpr = std::dynamic_pointer_cast<VariableExpr>(alloc->target)) {
+                out.insert(normalize(varExpr->name));
+            }
+        } else if (auto fr = std::dynamic_pointer_cast<FreeStmt>(stmt)) {
+            if (auto varExpr = std::dynamic_pointer_cast<VariableExpr>(fr->target)) {
+                out.insert(normalize(varExpr->name));
+            }
+        } else if (auto da = std::dynamic_pointer_cast<DerefAssignStmt>(stmt)) {
+            if (auto varExpr = std::dynamic_pointer_cast<VariableExpr>(da->target)) {
                 out.insert(normalize(varExpr->name));
             }
         } else if (auto rd = std::dynamic_pointer_cast<ReadStmt>(stmt)) {
@@ -721,6 +753,12 @@ void SemanticAnalyzer::checkStmt(const std::shared_ptr<Stmt>& stmt) {
 
     if (auto ma = std::dynamic_pointer_cast<MemberAssignStmt>(stmt)) {
         ExprTypeInfo objInfo = resolveExprTypeInfo(ma->target);
+        if (objInfo.typeSpec.kind == TypeKind::Pointer || (!objInfo.typeName.empty() && objInfo.typeName[0] == '^')) {
+            std::string pointee = objInfo.typeSpec.elemType.empty() ? objInfo.typeName.substr(1) : objInfo.typeSpec.elemType;
+            objInfo.typeName = pointee;
+            auto itP = typeMap_.find(normalize(pointee));
+            if (itP != typeMap_.end()) objInfo.typeSpec = itP->second.typeSpec;
+        }
         checkExpr(ma->target);
         const std::vector<std::shared_ptr<VarDecl>>* fields = nullptr;
         if (!objInfo.typeSpec.fields.empty()) {
@@ -788,7 +826,7 @@ void SemanticAnalyzer::checkStmt(const std::shared_ptr<Stmt>& stmt) {
 
     if (auto call = std::dynamic_pointer_cast<CallStmt>(stmt)) {
         std::string n = normalize(call->name);
-        if (n == "inserer") {
+        if (n == "inserer" && procMap_.find(n) == procMap_.end()) {
             reportError(call->line, -1, call->name,
                         "'Inserer' est une fonction et ne peut pas être appelée en tant que procédure.");
             return;
@@ -985,11 +1023,62 @@ void SemanticAnalyzer::checkStmt(const std::shared_ptr<Stmt>& stmt) {
         }
         return;
     }
+
+    if (auto alloc = std::dynamic_pointer_cast<AllocStmt>(stmt)) {
+        if (!isLValue(alloc->target)) {
+            reportError(alloc->line, -1, "Allouer", "L'instruction 'Allouer' attend une variable ou un emplacement modifiable.");
+        }
+        if (auto varExpr = std::dynamic_pointer_cast<VariableExpr>(alloc->target)) {
+            assignedVars_.insert(normalize(varExpr->name));
+        }
+        std::string tgtType = checkExpr(alloc->target);
+        bool isPtr = (!tgtType.empty() && tgtType[0] == '^');
+        auto it = typeMap_.find(normalize(tgtType));
+        if (it != typeMap_.end() && it->second.typeSpec.kind == TypeKind::Pointer) {
+            isPtr = true;
+        }
+        if (!isPtr && tgtType != "inconnu") {
+            reportError(alloc->line, -1, "Allouer", "L'argument de 'Allouer' doit être un pointeur (obtenu '" + tgtType + "').");
+        }
+        return;
+    }
+
+    if (auto fr = std::dynamic_pointer_cast<FreeStmt>(stmt)) {
+        if (!isLValue(fr->target)) {
+            reportError(fr->line, -1, "Liberer", "L'instruction 'Liberer' attend une variable ou un emplacement modifiable.");
+        }
+        std::string tgtType = checkExpr(fr->target);
+        bool isPtr = (!tgtType.empty() && tgtType[0] == '^');
+        auto it = typeMap_.find(normalize(tgtType));
+        if (it != typeMap_.end() && it->second.typeSpec.kind == TypeKind::Pointer) {
+            isPtr = true;
+        }
+        if (!isPtr && tgtType != "inconnu") {
+            reportError(fr->line, -1, "Liberer", "L'argument de 'Liberer' doit être un pointeur (obtenu '" + tgtType + "').");
+        }
+        return;
+    }
+
+    if (auto da = std::dynamic_pointer_cast<DerefAssignStmt>(stmt)) {
+        ExprTypeInfo tgtInfo = resolveExprTypeInfo(da->target);
+        checkExpr(da->target);
+        std::string pointee = tgtInfo.typeSpec.elemType.empty() ? (!tgtInfo.typeName.empty() && tgtInfo.typeName[0] == '^' ? tgtInfo.typeName.substr(1) : tgtInfo.typeName) : tgtInfo.typeSpec.elemType;
+        std::string valType = checkExpr(da->value);
+        if (!areTypesCompatible(pointee, valType)) {
+            reportError(da->line, -1, "^",
+                        "Affectation de type incompatible par déréférencement : attendu '" +
+                        pointee + "', mais obtenu '" + valType + "'.");
+        }
+        return;
+    }
 }
 
 std::string SemanticAnalyzer::checkExpr(const std::shared_ptr<Expr>& expr) {
     if (!expr) return "inconnu";
 
+    if (std::dynamic_pointer_cast<NilExpr>(expr)) {
+        return "nil";
+    }
     if (std::dynamic_pointer_cast<NumberExpr>(expr)) {
         return "entier";
     }
@@ -1001,6 +1090,12 @@ std::string SemanticAnalyzer::checkExpr(const std::shared_ptr<Expr>& expr) {
     }
     if (std::dynamic_pointer_cast<BoolExpr>(expr)) {
         return "booleen";
+    }
+    if (auto deref = std::dynamic_pointer_cast<DerefExpr>(expr)) {
+        std::string tgtType = checkExpr(deref->target);
+        ExprTypeInfo tgtInfo = resolveExprTypeInfo(deref->target);
+        std::string pointee = tgtInfo.typeSpec.elemType.empty() ? (!tgtType.empty() && tgtType[0] == '^' ? tgtType.substr(1) : tgtType) : tgtInfo.typeSpec.elemType;
+        return pointee;
     }
     if (auto v = std::dynamic_pointer_cast<VariableExpr>(expr)) {
         const Symbol* sym = findSymbol(v->name);
@@ -1032,6 +1127,12 @@ std::string SemanticAnalyzer::checkExpr(const std::shared_ptr<Expr>& expr) {
     }
     if (auto mem = std::dynamic_pointer_cast<MemberAccessExpr>(expr)) {
         ExprTypeInfo objInfo = resolveExprTypeInfo(mem->object);
+        if (objInfo.typeSpec.kind == TypeKind::Pointer || (!objInfo.typeName.empty() && objInfo.typeName[0] == '^')) {
+            std::string pointee = objInfo.typeSpec.elemType.empty() ? objInfo.typeName.substr(1) : objInfo.typeSpec.elemType;
+            objInfo.typeName = pointee;
+            auto itP = typeMap_.find(normalize(pointee));
+            if (itP != typeMap_.end()) objInfo.typeSpec = itP->second.typeSpec;
+        }
         checkExpr(mem->object);
         const std::vector<std::shared_ptr<VarDecl>>* fields = nullptr;
         if (!objInfo.typeSpec.fields.empty()) {
@@ -1278,6 +1379,34 @@ bool SemanticAnalyzer::areTypesCompatible(const std::string& targetType, const s
         }
     }
 
+    // Pointer compatibility
+    bool tIsPtr = (!t.empty() && t[0] == '^') || t == "nil" || t == "null" || t == "nul" || t == "pointeur";
+    bool sIsPtr = (!s.empty() && s[0] == '^') || s == "nil" || s == "null" || s == "nul" || s == "pointeur";
+    std::string tPointee = (!t.empty() && t[0] == '^') ? t.substr(1) : "";
+    std::string sPointee = (!s.empty() && s[0] == '^') ? s.substr(1) : "";
+
+    auto itTP = typeMap_.find(t);
+    if (itTP != typeMap_.end() && itTP->second.typeSpec.kind == TypeKind::Pointer) {
+        tIsPtr = true;
+        tPointee = itTP->second.typeSpec.elemType;
+    }
+    auto itSP = typeMap_.find(s);
+    if (itSP != typeMap_.end() && itSP->second.typeSpec.kind == TypeKind::Pointer) {
+        sIsPtr = true;
+        sPointee = itSP->second.typeSpec.elemType;
+    }
+
+    if (tIsPtr || sIsPtr) {
+        if (t == "nil" || t == "null" || t == "nul" || s == "nil" || s == "null" || s == "nul") {
+            return tIsPtr && sIsPtr;
+        }
+        if (tIsPtr && sIsPtr) {
+            if (tPointee.empty() || sPointee.empty()) return true;
+            return areTypesCompatible(tPointee, sPointee);
+        }
+        return false;
+    }
+
     if (t == s) return true;
     if (isNumericType(t) && isNumericType(s)) return true;
     if ((t == "chaine" || t == "caractere") && (s == "chaine" || s == "caractere")) return true;
@@ -1319,6 +1448,7 @@ bool SemanticAnalyzer::isLValue(const std::shared_ptr<Expr>& expr) {
     if (std::dynamic_pointer_cast<VariableExpr>(expr)) return true;
     if (std::dynamic_pointer_cast<ArrayAccessExpr>(expr)) return true;
     if (std::dynamic_pointer_cast<MemberAccessExpr>(expr)) return true;
+    if (std::dynamic_pointer_cast<DerefExpr>(expr)) return true;
     return false;
 }
 

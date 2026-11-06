@@ -144,6 +144,9 @@ Value Interpreter::convertInput(const std::string& inputStr, const Value& curren
 }
 
 Value Interpreter::getDefaultValue(const TypeSpec& ts, const std::string& varName) const {
+    if (ts.kind == TypeKind::Pointer) {
+        return Value::makeNil();
+    }
     if (ts.kind == TypeKind::Array2D) {
         Value elemDef = getDefaultValue(ts.elemType);
         std::vector<Value> row(ts.cols, elemDef);
@@ -176,6 +179,8 @@ Value Interpreter::getDefaultValue(const TypeSpec& ts, const std::string& varNam
 
 Value Interpreter::getDefaultValue(const std::string& typeName) const {
     std::string norm = normalize(typeName);
+    if (!norm.empty() && norm[0] == '^') return Value::makeNil();
+    if (norm.find("pointeur") == 0) return Value::makeNil();
     if (norm == "entier") return Value((int64_t)0);
     if (norm == "reel") return Value((double)0.0);
     if (norm == "booleen") return Value(false);
@@ -185,6 +190,9 @@ Value Interpreter::getDefaultValue(const std::string& typeName) const {
     auto it = typeDefs_.find(norm);
     if (it != typeDefs_.end()) {
         const auto& td = it->second;
+        if (td.typeSpec.kind == TypeKind::Pointer) {
+            return Value::makeNil();
+        }
         if (td.typeSpec.kind != TypeKind::Simple) {
             return getDefaultValue(td.typeSpec);
         }
@@ -205,6 +213,8 @@ void Interpreter::run(const Program& prog) {
     typeDefs_.clear();
     procedures_.clear();
     functions_.clear();
+    varDecls_ = prog.varDecls;
+    currentSubroutine_.clear();
     openFiles_.clear();
     enumOrdinals_.clear();
 
@@ -269,9 +279,28 @@ void Interpreter::assignToLValue(const std::shared_ptr<Expr>& lhs, const Value& 
         env->set(varExpr->name, val, line > 0 ? line : varExpr->line);
         return;
     }
+    if (lhs->kind == ExprKind::Deref) {
+        auto* derefExpr = static_cast<DerefExpr*>(lhs.get());
+        Value ptr = evaluateExpression(derefExpr->target, env);
+        if (!ptr.isPointer() || !ptr.ptrVal) {
+            throw AlgoError("Déréférencement d'un pointeur NIL ou non alloué", line > 0 ? line : derefExpr->line);
+        }
+        *(ptr.ptrVal) = val;
+        return;
+    }
     if (lhs->kind == ExprKind::MemberAccess) {
         auto* memExpr = static_cast<MemberAccessExpr*>(lhs.get());
         Value obj = evaluateExpression(memExpr->object, env);
+        if (obj.isPointer()) {
+            if (!obj.ptrVal) {
+                throw AlgoError("Déréférencement d'un pointeur NIL ou non alloué", line > 0 ? line : memExpr->line);
+            }
+            if (!obj.ptrVal->isRecord()) {
+                throw AlgoError("Accès à un champ sur un objet qui n'est pas un enregistrement", line > 0 ? line : memExpr->line);
+            }
+            obj.ptrVal->recVal[memExpr->member] = val;
+            return;
+        }
         if (!obj.isRecord()) {
             throw AlgoError("Accès à un champ sur un objet qui n'est pas un enregistrement", line > 0 ? line : memExpr->line);
         }
@@ -443,6 +472,102 @@ void Interpreter::visit(MemberAssignStmt& ma) {
     Value val = evaluateExpression(ma.value, currentEnv_);
     auto lhs = std::make_shared<MemberAccessExpr>(ma.target, ma.member, ma.line);
     assignToLValue(lhs, val, currentEnv_, ma.line);
+}
+
+std::string Interpreter::resolveExprType(const std::shared_ptr<Expr>& expr) const {
+    if (!expr) return "";
+    if (auto varExpr = std::dynamic_pointer_cast<VariableExpr>(expr)) {
+        std::string vNorm = normalize(varExpr->name);
+        if (!currentSubroutine_.empty()) {
+            auto pit = procedures_.find(currentSubroutine_);
+            if (pit != procedures_.end()) {
+                for (const auto& p : pit->second.params) {
+                    if (normalize(p.name) == vNorm) return p.paramType;
+                }
+                for (const auto& vd : pit->second.localVars) {
+                    for (const auto& n : vd.names) {
+                        if (normalize(n) == vNorm) return vd.varType;
+                    }
+                }
+            }
+            auto fit = functions_.find(currentSubroutine_);
+            if (fit != functions_.end()) {
+                for (const auto& p : fit->second.params) {
+                    if (normalize(p.name) == vNorm) return p.paramType;
+                }
+                for (const auto& vd : fit->second.localVars) {
+                    for (const auto& n : vd.names) {
+                        if (normalize(n) == vNorm) return vd.varType;
+                    }
+                }
+            }
+        }
+        for (const auto& vd : varDecls_) {
+            for (const auto& n : vd.names) {
+                if (normalize(n) == vNorm) return vd.varType;
+            }
+        }
+        return "";
+    }
+    if (auto mem = std::dynamic_pointer_cast<MemberAccessExpr>(expr)) {
+        std::string objType = resolveExprType(mem->object);
+        if (!objType.empty() && objType[0] == '^') objType = objType.substr(1);
+        auto it = typeDefs_.find(normalize(objType));
+        if (it != typeDefs_.end()) {
+            for (const auto& f : it->second.typeSpec.fields) {
+                for (const auto& n : f->names) {
+                    if (normalize(n) == normalize(mem->member)) return f->varType;
+                }
+            }
+        }
+        return "";
+    }
+    if (auto deref = std::dynamic_pointer_cast<DerefExpr>(expr)) {
+        std::string t = resolveExprType(deref->target);
+        if (!t.empty() && t[0] == '^') return t.substr(1);
+        auto it = typeDefs_.find(normalize(t));
+        if (it != typeDefs_.end() && it->second.typeSpec.kind == TypeKind::Pointer) {
+            return it->second.typeSpec.elemType;
+        }
+        return "";
+    }
+    return "";
+}
+
+std::string Interpreter::resolvePointeeType(const std::shared_ptr<Expr>& expr) const {
+    std::string t = resolveExprType(expr);
+    if (!t.empty() && t[0] == '^') return t.substr(1);
+    std::string tNorm = normalize(t);
+    if (tNorm.find("pointeur sur ") == 0) return t.substr(13);
+    if (tNorm.find("pointeur de ") == 0) return t.substr(12);
+    auto it = typeDefs_.find(tNorm);
+    if (it != typeDefs_.end() && it->second.typeSpec.kind == TypeKind::Pointer) {
+        return it->second.typeSpec.elemType;
+    }
+    return t;
+}
+
+void Interpreter::visit(DerefAssignStmt& da) {
+    checkIterationLimit(da.line);
+    checkTimeout(da.line);
+    Value val = evaluateExpression(da.value, currentEnv_);
+    auto lhs = std::make_shared<DerefExpr>(da.target, da.line);
+    assignToLValue(lhs, val, currentEnv_, da.line);
+}
+
+void Interpreter::visit(AllocStmt& node) {
+    checkIterationLimit(node.line);
+    checkTimeout(node.line);
+    std::string pointeeType = resolvePointeeType(node.target);
+    Value initialVal = getDefaultValue(pointeeType);
+    Value newPtr = Value::makePointer(std::make_shared<Value>(std::move(initialVal)));
+    assignToLValue(node.target, newPtr, currentEnv_, node.line);
+}
+
+void Interpreter::visit(FreeStmt& node) {
+    checkIterationLimit(node.line);
+    checkTimeout(node.line);
+    assignToLValue(node.target, Value::makeNil(), currentEnv_, node.line);
 }
 
 void Interpreter::visit(WriteStmt& w) {
@@ -828,6 +953,8 @@ void Interpreter::executeProcedure(const std::string& name, const std::vector<st
     }
     const auto& proc = it->second;
     auto localEnv = std::make_shared<Environment>(globalEnv_);
+    std::string oldSub = currentSubroutine_;
+    currentSubroutine_ = n;
 
     // Bind parameters
     for (size_t i = 0; i < proc.params.size(); i++) {
@@ -889,6 +1016,7 @@ void Interpreter::executeProcedure(const std::string& name, const std::vector<st
     }
 
     executeBlock(proc.body, localEnv);
+    currentSubroutine_ = oldSub;
 }
 
 Value Interpreter::executeFunction(const std::string& name, const std::vector<std::shared_ptr<Expr>>& args,
@@ -900,6 +1028,8 @@ Value Interpreter::executeFunction(const std::string& name, const std::vector<st
     }
     const auto& func = it->second;
     auto localEnv = std::make_shared<Environment>(globalEnv_);
+    std::string oldSub = currentSubroutine_;
+    currentSubroutine_ = n;
 
     // Bind parameters
     for (size_t i = 0; i < func.params.size(); i++) {
@@ -962,6 +1092,7 @@ Value Interpreter::executeFunction(const std::string& name, const std::vector<st
     returnValue_ = {false, getDefaultValue(func.returnType)};
 
     executeBlock(func.body, localEnv);
+    currentSubroutine_ = oldSub;
 
     Value result = returnValue_.value;
     returnValue_ = oldRet;
@@ -1049,6 +1180,12 @@ void Interpreter::visit(ArrayAccessExpr& node) {
 
 void Interpreter::visit(MemberAccessExpr& node) {
     Value obj = evaluateExpression(node.object, currentEnv_);
+    if (obj.isPointer()) {
+        if (!obj.ptrVal) {
+            throw AlgoError("Déréférencement d'un pointeur NIL ou non alloué", node.line);
+        }
+        obj = *(obj.ptrVal);
+    }
     if (!obj.isRecord()) {
         throw AlgoError("Accès à un membre sur un objet qui n'est pas un enregistrement", node.line);
     }
@@ -1147,6 +1284,18 @@ void Interpreter::visit(SetLiteralExpr& node) {
         arr.push_back(evaluateExpression(elem, currentEnv_));
     }
     evalResult_ = Value(std::move(arr));
+}
+
+void Interpreter::visit(DerefExpr& node) {
+    Value ptr = evaluateExpression(node.target, currentEnv_);
+    if (!ptr.isPointer() || !ptr.ptrVal) {
+        throw AlgoError("Déréférencement d'un pointeur NIL ou non alloué", node.line);
+    }
+    evalResult_ = *(ptr.ptrVal);
+}
+
+void Interpreter::visit(NilExpr& node) {
+    evalResult_ = Value::makeNil();
 }
 
 Value Interpreter::evaluateCall(const std::string& name, const std::vector<std::shared_ptr<Expr>>& args,

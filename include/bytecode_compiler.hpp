@@ -23,6 +23,9 @@ public:
     void visit(AssignStmt& node) override;
     void visit(ArrayAssignStmt& node) override;
     void visit(MemberAssignStmt& node) override;
+    void visit(DerefAssignStmt& node) override;
+    void visit(AllocStmt& node) override;
+    void visit(FreeStmt& node) override;
     void visit(WriteStmt& node) override;
     void visit(ReadStmt& node) override;
     void visit(IfStmt& node) override;
@@ -46,6 +49,8 @@ public:
     void visit(BinaryExpr& node) override;
     void visit(CallExpr& node) override;
     void visit(SetLiteralExpr& node) override;
+    void visit(DerefExpr& node) override;
+    void visit(NilExpr& node) override;
 
 private:
     Chunk* currentChunk_ = nullptr;
@@ -60,6 +65,11 @@ private:
     std::unordered_map<std::string, TypeSpec> typeMap_;
     std::vector<VarDecl> varDecls_;
     const std::vector<VarDecl>* currentLocalVars_ = nullptr;
+    const Program* currentProg_ = nullptr;
+    std::string currentSubroutineName_;
+
+    std::string resolveExprType(const std::shared_ptr<Expr>& expr) const;
+    std::string resolvePointeeType(const std::shared_ptr<Expr>& expr) const;
 
     bool isFileType(const TypeSpec& ts) const;
     bool isFileVar(const std::string& varName) const;

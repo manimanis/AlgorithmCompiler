@@ -2,7 +2,7 @@
 
 **AlgorithmCompiler** est un interpréteur, vérificateur sémantique statique et transpilateur haute performance pour le pseudo-code algorithmique standard utilisé dans l'enseignement secondaire et supérieur en Tunisie (programmes du Baccalauréat tunisien : Mathématiques, Sciences Expérimentales, Sciences de l'Informatique, Technique et Économie-Gestion).
 
-Le projet est développé en **C++20 moderne** et dispose d'une suite complète de **214 tests unitaires automatisés validés à 100%**, d'un **harnais de fuzzing automatisé** et d'un pipeline de **CI/CD multiplateforme** (Ubuntu, Windows, macOS).
+Le projet est développé en **C++20 moderne** et dispose d'une suite complète de **223 tests unitaires automatisés validés à 100%**, d'un **harnais de fuzzing automatisé** et d'un pipeline de **CI/CD multiplateforme** (Ubuntu, Windows, macOS).
 
 > 📚 **Documentation Complète & Manuel de Référence :**
 > - [📖 Guide Complet de Référence (Markdown)](docs/GUIDE_REFERENCE.md)
@@ -18,7 +18,7 @@ Le projet est développé en **C++20 moderne** et dispose d'une suite complète 
    - [Tables de Déclarations (TDO, TDOL, TDNT, TDOG)](#tables-de-déclarations-tdo-tdol-tdnt-tdog)
    - [Types de Données Primitifs & Littéraux](#types-de-données-primitifs--littéraux)
    - [Notation Scientifique](#notation-scientifique)
-   - [Structures de Données Avancées (Tableaux, Matrices, Enregistrements)](#structures-de-données-avancées)
+   - [Structures de Données Avancées (Tableaux, Matrices, Enregistrements, Pointeurs)](#structures-de-données-avancées)
    - [Fichiers Textuels & Typés](#fichiers-textuels--typés)
    - [Structures de Contrôle](#structures-de-contrôle)
    - [Sous-programmes (Procédures & Fonctions)](#sous-programmes-procédures--fonctions)
@@ -51,7 +51,7 @@ AlgorithmCompiler/
 │   ├── python_transpiler.hpp   # Transpilateur vers code Python idiomatique
 │   ├── semantic_analyzer.hpp   # Analyseur sémantique statique & diagnostics
 │   ├── token.hpp               # Définitions des types de jetons (Token)
-│   ├── value.hpp               # Modèle de valeur polymorphe (entier, réel, chaîne, tableau, enregistrement, fichier)
+│   ├── value.hpp               # Modèle de valeur polymorphe (entier, réel, chaîne, tableau, enregistrement, pointeur, fichier)
 │   └── vm.hpp                  # Machine Virtuelle à pile haute performance (Bytecode VM)
 ├── src/
 │   ├── main.cpp                # Point d'entrée CLI (algo / algo.exe) avec options --vm, --ast, --dump-bytecode
@@ -63,14 +63,14 @@ AlgorithmCompiler/
 │   ├── interpreter.cpp         # Implémentation de l'interpréteur par Visiteur
 │   ├── parser.cpp              # Implémentation du parseur avec allocation d'arène
 │   ├── lexer.cpp               # Implémentation du lexer
-│   ├── test_runner.cpp         # Runner autonome des 214 tests unitaires
+│   ├── test_runner.cpp         # Runner autonome des 223 tests unitaires
 │   └── fuzz_runner.cpp         # Harnais de fuzzing automatisé (mutations et robustesse)
 ├── .github/workflows/
 │   └── ci.yml                  # Pipeline CI/CD GitHub Actions multi-OS (Linux, macOS, Windows)
 ├── Makefile                    # Makefile universel multiplateforme (Linux, macOS, Windows)
 ├── build.sh                    # Script shell de compilation directe pour Linux / macOS
 ├── build.bat                   # Script batch de compilation pour Windows
-├── tests/                      # 214 tests couvrant toutes les fonctionnalités et optimisations
+├── tests/                      # 223 tests couvrant toutes les fonctionnalités et optimisations
 └── scripts/                    # Scripts Node.js pour compilation et validation
 ```
 
@@ -168,6 +168,31 @@ e1, e2 : Etudiant
 - **Tableau d'enregistrements** : `promo[i].nom ← "Mouna"`.
 - **Enregistrement contenant des tableaux** : `e.notes[0] ← 17.5`.
 - **Passage par référence d'enregistrements imbriqués** vers des procédures : `@p.adresse`.
+
+#### 5. Pointeurs & Structures Dynamiques (Piles, Files, Listes, Arbres, Graphes)
+AlgorithmCompiler intègre le support complet des **pointeurs** pour implémenter toutes les structures de données récursives et dynamiques :
+```algorithme
+TDNT
+Cellule = Enregistrement
+    valeur : Entier
+    suivant : ^Cellule
+Fin
+
+TDO
+Objet : Type/Nature
+tete, p : ^Cellule
+val : Entier
+```
+
+- **Déclaration** : `^Type` ou `Pointeur sur Type`.
+- **Pointeur nul** : Constante `NIL` (ou `NULL`, `NUL`), comparabilité directe (`Si p <> NIL Alors ...`).
+- **Allocation dynamique** : `Allouer(p)` crée une instance sur le tas initialisée selon son type.
+- **Libération de mémoire** : `Liberer(p)` libère l'emplacement et réinitialise le pointeur à `NIL`.
+- **Déréférencement** :
+  - Opérateur chapeau postfixe : `p^ ← 42`, `x ← p^`.
+  - Accès aux champs : `p^.valeur ← 10` ou avec auto-déréférencement direct `p.valeur ← 10`.
+- **Sémantique de référence partagée** : L'aliasing `p2 ← p1` partage le même objet tas ; toute modification via `p2^` ou `p2.champ` se répercute instantanément sur `p1`.
+- **Passage en paramètre par référence** : `@sommet : ^Cellule` permet aux procédures d'empiler ou défiler directement la tête d'une pile ou file.
 
 ### Fichiers Textuels & Typés
 
@@ -312,6 +337,7 @@ AlgorithmCompiler permet de générer du code **Python 3 moderne, propre et dire
 - **Règle stricte sur `break`** : L'instruction `break` étant bannie pédagogiquement, la structure `Répéter ... Jusqu'à` est transpilée de manière idiomatique sans `while True: ... break`.
 - **Tableaux et Matrices via NumPy** : Implémentés exclusivement via la fonction `array` de NumPy (`from numpy import array`).
 - **Enregistrements via `dict`** : Les enregistrements sont transpilés en dictionnaires natifs Python (`dict`).
+- **Pointeurs & Références tas** : Les pointeurs sont transpilés en références Python directes (initialisation à `None`, dictionnaires mutables pour les enregistrements, listes unitaires mutables pour les scalaires, `Liberer(p)` -> `p = None`).
 - **Fonctions natives directes** : `Pos(ch1, ch2)` est directement transpilé en `ch2.find(ch1)`.
 
 ---
@@ -437,7 +463,7 @@ node scripts/compile.js
 
 Les exécutables générés sous Windows sont :
 - `algo.exe` : Le compilateur, interpréteur et transpilateur principal (autonome, sans dépendance DLL).
-- `run_tests.exe` : Le runner de la suite des 187 tests unitaires.
+- `run_tests.exe` : Le runner de la suite des 223 tests unitaires.
 
 ---
 
@@ -479,7 +505,7 @@ Enregistrer le code Python directement dans un fichier :
 
 ## 🧪 Suite de Tests Automatisée, Fuzzing & CI/CD
 
-AlgorithmCompiler dispose d'une suite de **214 tests unitaires validés à 100%**, d'un **harnais de fuzzing automatisé** et d'un pipeline de **CI/CD GitHub Actions**.
+AlgorithmCompiler dispose d'une suite de **223 tests unitaires validés à 100%**, d'un **harnais de fuzzing automatisé** et d'un pipeline de **CI/CD GitHub Actions**.
 
 ### Lancer tous les tests unitaires en C++
 Sous Linux / macOS :
@@ -499,8 +525,8 @@ Résultats obtenus :
 ========================================================
                   RÉSULTATS DES TESTS                   
 ========================================================
- Total tests : 214
- Réussis     : 214
+ Total tests : 223
+ Réussis     : 223
  Échoués     : 0 (100% SUCCÈS)
  Durée       : ~1600 ms
 ========================================================
@@ -526,7 +552,7 @@ Le workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) compile et te
 - **Ubuntu Linux** (GCC 13/14)
 - **Windows** (MinGW UCRT64)
 - **macOS** (Apple Clang)
-Chaque étape valide la compilation, les 214 tests unitaires, le fuzzing, les benchmarks et la transpilation Python.
+Chaque étape valide la compilation, les 223 tests unitaires, le fuzzing, les benchmarks et la transpilation Python.
 
 ### Lancer les tests du transpilateur Python (facultatif)
 Nécessite Node.js et Python 3 :
@@ -601,6 +627,55 @@ TDO
 Objet : Type/Nature
 promo : Tableau de 2 Etudiant
 i : entier
+```
+
+### 3. Pile Dynamique avec Pointeurs (LIFO & Passage par référence)
+
+```algorithme
+Procédure Empiler(@sommet : ^Cellule, val : Entier)
+Début
+  Allouer(nouveau)
+  nouveau^.valeur ← val
+  nouveau^.prec ← sommet
+  sommet ← nouveau
+Fin
+
+TDOL
+Objet : Type/Nature
+nouveau : ^Cellule
+
+Procédure Depiler(@sommet : ^Cellule, @val : Entier)
+Début
+  Si sommet <> NIL Alors
+    val ← sommet^.valeur
+    sommet ← sommet^.prec
+  Fin Si
+Fin
+
+Algorithme Demo_Pile_Pointeurs
+Début
+  pile ← NIL
+  Empiler(pile, 10)
+  Empiler(pile, 20)
+  Empiler(pile, 30)
+
+  Tant Que pile <> NIL Faire
+    Depiler(pile, element)
+    Ecrire("Dépilé :", element)
+  Fin Tant Que
+Fin
+
+TDNT
+Cellule = Enregistrement
+  valeur : Entier
+  prec : ^Cellule
+Fin
+
+TDO
+Objet : Type/Nature
+pile : ^Cellule
+element : Entier
+Empiler, Depiler : Procédure
 ```
 
 ---

@@ -292,6 +292,37 @@ TypeSpec Parser::parseTypeSpec() {
     TypeSpec ts;
     std::string n = normalize(peek().value);
 
+    // Pointer type: ^Type
+    if (peek().value == "^") {
+        next(); // consume ^
+        ts.kind = TypeKind::Pointer;
+        if (peek().type == TokenType::TYPE || peek().type == TokenType::IDENTIFIER) {
+            ts.elemType = next().value;
+            ts.name = "^" + ts.elemType;
+        } else {
+            error("Attendu un type après '^'");
+        }
+        return ts;
+    }
+
+    // Pointer type: Pointeur sur Type / Pointeur de Type
+    if (n == "pointeur") {
+        next(); // consume pointeur
+        std::string prep = normalize(peek().value);
+        if (prep == "sur" || prep == "de") {
+            next(); // consume sur/de
+        }
+        ts.kind = TypeKind::Pointer;
+        if (peek().value == "^") next();
+        if (peek().type == TokenType::TYPE || peek().type == TokenType::IDENTIFIER) {
+            ts.elemType = next().value;
+            ts.name = "^" + ts.elemType;
+        } else {
+            error("Attendu un type pour le pointeur");
+        }
+        return ts;
+    }
+
     // Enum: (Val1, Val2, ...)
     if (match(TokenType::DELIMITER, "(")) {
         ts.kind = TypeKind::Enum;
@@ -471,7 +502,7 @@ TypeSpec Parser::parseTypeSpec() {
                 }
                 expect(TokenType::DELIMITER, ":");
                 fieldDecl->typeSpec = parseTypeSpec();
-                fieldDecl->varType = fieldDecl->typeSpec.elemType.empty() ? fieldDecl->typeSpec.name : fieldDecl->typeSpec.elemType;
+                fieldDecl->varType = (fieldDecl->typeSpec.kind == TypeKind::Pointer) ? ("^" + fieldDecl->typeSpec.elemType) : (fieldDecl->typeSpec.elemType.empty() ? fieldDecl->typeSpec.name : fieldDecl->typeSpec.elemType);
                 ts.fields.push_back(fieldDecl);
                 consumeSemicolons();
             } else {
@@ -544,7 +575,7 @@ std::vector<VarDecl> Parser::parseVarDeclarations(bool hasVarKeyword) {
 
         expect(TokenType::DELIMITER, ":");
         d.typeSpec = parseTypeSpec();
-        d.varType = d.typeSpec.elemType.empty() ? d.typeSpec.name : d.typeSpec.elemType;
+        d.varType = (d.typeSpec.kind == TypeKind::Pointer) ? ("^" + d.typeSpec.elemType) : (d.typeSpec.elemType.empty() ? d.typeSpec.name : d.typeSpec.elemType);
         return d;
     };
 
@@ -615,7 +646,7 @@ FunctionDecl Parser::parseFunctionDeclaration() {
     expect(TokenType::DELIMITER, ":");
 
     TypeSpec ts = parseTypeSpec();
-    std::string retType = ts.kind == TypeKind::FileText ? "Fichier Texte" : (ts.elemType.empty() ? ts.name : ts.elemType);
+    std::string retType = (ts.kind == TypeKind::Pointer) ? ("^" + ts.elemType) : (ts.kind == TypeKind::FileText ? "Fichier Texte" : (ts.elemType.empty() ? ts.name : ts.elemType));
 
     FunctionDecl func;
     func.name = nameTok.value;
@@ -672,7 +703,7 @@ std::vector<ParamDecl> Parser::parseParamList() {
 
         expect(TokenType::DELIMITER, ":");
         TypeSpec ts = parseTypeSpec();
-        std::string pType = ts.kind == TypeKind::FileText ? "Fichier Texte" : (ts.elemType.empty() ? ts.name : ts.elemType);
+        std::string pType = (ts.kind == TypeKind::Pointer) ? ("^" + ts.elemType) : (ts.kind == TypeKind::FileText ? "Fichier Texte" : (ts.elemType.empty() ? ts.name : ts.elemType));
 
         for (const auto& item : names) {
             ParamDecl p;
@@ -929,6 +960,8 @@ std::shared_ptr<Stmt> Parser::parseStatement() {
 
     if (n == "ecrire" || n == "ecrire_nl") return parseWrite();
     if (n == "lire") return parseRead();
+    if (n == "allouer") return parseAlloc();
+    if (n == "liberer") return parseFree();
     if (n == "lire_ligne") {
         Token tok = next();
         expect(TokenType::DELIMITER, "(");
@@ -952,6 +985,22 @@ std::shared_ptr<Stmt> Parser::parseStatement() {
     return parseAssignOrCall();
 }
 
+std::shared_ptr<Stmt> Parser::parseAlloc() {
+    Token tok = next(); // consume allouer or nouveau
+    expect(TokenType::DELIMITER, "(");
+    auto target = parseExpression();
+    expect(TokenType::DELIMITER, ")");
+    return makeNode<AllocStmt>(std::move(target), tok.line);
+}
+
+std::shared_ptr<Stmt> Parser::parseFree() {
+    Token tok = next(); // consume liberer or detruire
+    expect(TokenType::DELIMITER, "(");
+    auto target = parseExpression();
+    expect(TokenType::DELIMITER, ")");
+    return makeNode<FreeStmt>(std::move(target), tok.line);
+}
+
 std::shared_ptr<Stmt> Parser::parseAssignOrCall() {
     Token idTok = expect(TokenType::IDENTIFIER);
     int line = idTok.line;
@@ -970,7 +1019,10 @@ std::shared_ptr<Stmt> Parser::parseAssignOrCall() {
 
     std::shared_ptr<Expr> lhs = makeNode<VariableExpr>(idTok.value, line);
     while (true) {
-        if (match(TokenType::DELIMITER, ".")) {
+        if (peek().value == "^") {
+            next(); // consume ^
+            lhs = makeNode<DerefExpr>(lhs, line);
+        } else if (match(TokenType::DELIMITER, ".")) {
             Token mTok = expect(TokenType::IDENTIFIER);
             lhs = makeNode<MemberAccessExpr>(lhs, mTok.value, mTok.line);
         } else if (match(TokenType::DELIMITER, "[")) {
@@ -993,6 +1045,9 @@ std::shared_ptr<Stmt> Parser::parseAssignOrCall() {
     if (peek().type == TokenType::ARROW) {
         next(); // consume arrow
         auto val = parseExpression();
+        if (auto deref = std::dynamic_pointer_cast<DerefExpr>(lhs)) {
+            return makeNode<DerefAssignStmt>(deref->target, val, line);
+        }
         if (auto mem = std::dynamic_pointer_cast<MemberAccessExpr>(lhs)) {
             return makeNode<MemberAssignStmt>(mem->object, mem->member, val, line);
         }
@@ -1469,6 +1524,12 @@ std::shared_ptr<Expr> Parser::parseFactor() {
         return makeNode<BoolExpr>(false, tok.line);
     }
 
+    // Nil / Null literal
+    if (normalize(tok.value) == "nil" || normalize(tok.value) == "null" || normalize(tok.value) == "nul") {
+        next();
+        return makeNode<NilExpr>(tok.line);
+    }
+
     // Identifier: variable, array access, or function call
     if (tok.type == TokenType::IDENTIFIER) {
         Token idTok = next();
@@ -1490,7 +1551,24 @@ std::shared_ptr<Expr> Parser::parseFactor() {
         }
 
         while (true) {
-            if (match(TokenType::DELIMITER, ".")) {
+            if (peek().value == "^") {
+                TokenType nextType = peek(1).type;
+                std::string nextVal = peek(1).value;
+                std::string nextNorm = normalize(nextVal);
+                bool isBinaryPower = (nextType == TokenType::NUMBER ||
+                                      nextType == TokenType::STRING ||
+                                      (nextType == TokenType::DELIMITER && nextVal == "("));
+                if (nextType == TokenType::IDENTIFIER && nextNorm != "et" && nextNorm != "ou" &&
+                    nextNorm != "div" && nextNorm != "mod" && nextNorm != "non") {
+                    isBinaryPower = true;
+                }
+                if (!isBinaryPower) {
+                    next(); // consume ^
+                    expr = makeNode<DerefExpr>(expr, line);
+                    continue;
+                }
+                break;
+            } else if (match(TokenType::DELIMITER, ".")) {
                 Token mTok = expect(TokenType::IDENTIFIER);
                 expr = makeNode<MemberAccessExpr>(expr, mTok.value, mTok.line);
             } else if (peek().type == TokenType::DELIMITER && peek().value == "[") {
