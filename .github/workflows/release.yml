@@ -1,0 +1,187 @@
+name: Release Binaries
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag de la release (ex: v1.5.0)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build & Package (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux x86_64
+            os: ubuntu-latest
+            cxx: g++
+            archive_ext: tar.gz
+            bin_name: algo
+            target_os: linux
+          - name: macOS x86_64
+            os: macos-latest
+            cxx: clang++
+            archive_ext: tar.gz
+            bin_name: algo
+            target_os: macos
+          - name: Windows x86_64
+            os: windows-latest
+            cxx: g++
+            archive_ext: zip
+            bin_name: algo.exe
+            target_os: windows
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # --- Configuration spécifique Linux ---
+      - name: Install dependencies (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++ make zip
+
+      # --- Configuration spécifique Windows (MSYS2 UCRT64) ---
+      - name: Setup MSYS2 & MinGW (Windows)
+        if: matrix.os == 'windows-latest'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: false
+          path-type: inherit
+          install: >-
+            make
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-make
+            zip
+
+      # --- Compilation Unix (Linux / macOS) ---
+      - name: Build project (Linux / macOS)
+        if: matrix.os != 'windows-latest'
+        run: |
+          make CXX=${{ matrix.cxx }} CXXFLAGS="-std=c++20 -O3 -Wall -Wextra -Iinclude" all
+
+      # --- Compilation Windows (Static linking pour portabilité maximale) ---
+      - name: Build project (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: msys2 {0}
+        run: |
+          if ! command -v make &> /dev/null; then
+            cp /ucrt64/bin/mingw32-make.exe /ucrt64/bin/make.exe
+          fi
+          make TARGET_OS=windows CXXFLAGS="-std=c++20 -O3 -Wall -Wextra -Iinclude" STATIC_FLAGS="-static -static-libgcc -static-libstdc++" all
+
+      # --- Validation des Tests Unitaires avant release ---
+      - name: Run Unit Tests (Linux / macOS)
+        if: matrix.os != 'windows-latest'
+        run: |
+          ./run_tests
+
+      - name: Run Unit Tests (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: msys2 {0}
+        run: |
+          ./run_tests.exe
+
+      # --- Empaquetage Linux / macOS (.tar.gz) ---
+      - name: Package Release Asset (Linux / macOS)
+        if: matrix.os != 'windows-latest'
+        run: |
+          RAW_TAG="${{ inputs.tag_name || github.ref_name }}"
+          TAG="${RAW_TAG#refs/tags/}"
+          TAG="${TAG:-latest}"
+          PKG_NAME="algo-${TAG}-${{ matrix.target_os }}-x86_64"
+          mkdir -p "${PKG_NAME}"
+          cp ${{ matrix.bin_name }} "${PKG_NAME}/"
+          cp README.md "${PKG_NAME}/"
+          if [ -d "docs" ]; then
+            mkdir -p "${PKG_NAME}/docs"
+            cp docs/GUIDE_REFERENCE.md "${PKG_NAME}/docs/" 2>/dev/null || true
+            cp docs/reference.html "${PKG_NAME}/docs/" 2>/dev/null || true
+          fi
+          tar -czvf "${PKG_NAME}.tar.gz" "${PKG_NAME}"
+          sha256sum "${PKG_NAME}.tar.gz" > "${PKG_NAME}.tar.gz.sha256"
+
+      # --- Empaquetage Windows (.zip) ---
+      - name: Package Release Asset (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: msys2 {0}
+        run: |
+          RAW_TAG="${{ inputs.tag_name || github.ref_name }}"
+          TAG="${RAW_TAG#refs/tags/}"
+          TAG="${TAG:-latest}"
+          PKG_NAME="algo-${TAG}-windows-x86_64"
+          mkdir -p "${PKG_NAME}"
+          cp algo.exe "${PKG_NAME}/"
+          cp README.md "${PKG_NAME}/"
+          if [ -d "docs" ]; then
+            mkdir -p "${PKG_NAME}/docs"
+            cp docs/GUIDE_REFERENCE.md "${PKG_NAME}/docs/" 2>/dev/null || true
+            cp docs/reference.html "${PKG_NAME}/docs/" 2>/dev/null || true
+          fi
+          zip -r "${PKG_NAME}.zip" "${PKG_NAME}"
+          sha256sum "${PKG_NAME}.zip" > "${PKG_NAME}.zip.sha256"
+
+      # --- Téléversement des artefacts pour le job de publication ---
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: assets-${{ matrix.target_os }}
+          path: |
+            algo-*.*
+            *.sha256
+
+  publish-release:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all built assets
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Generate Consolidated Checksums
+        run: |
+          cd dist
+          cat *.sha256 > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Determine Release Tag
+        id: get_tag
+        run: |
+          RAW_TAG="${{ inputs.tag_name || github.ref_name }}"
+          TAG="${RAW_TAG#refs/tags/}"
+          TAG="${TAG:-latest}"
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release and Upload Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.get_tag.outputs.tag }}
+          name: AlgorithmCompiler ${{ steps.get_tag.outputs.tag }}
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+          files: |
+            dist/*.zip
+            dist/*.tar.gz
+            dist/*.sha256
+            dist/SHA256SUMS.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
