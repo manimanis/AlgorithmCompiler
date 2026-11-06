@@ -1216,7 +1216,7 @@ void BytecodeCompiler::visit(DerefExpr& node) {
     emitOp(OpCode::OP_DEREF);
 }
 
-void BytecodeCompiler::visit(NilExpr& node) {
+void BytecodeCompiler::visit([[maybe_unused]] NilExpr& node) {
     emitOp(OpCode::OP_CONST);
     emitUint32(addConstant(Value::makeNil()));
 }

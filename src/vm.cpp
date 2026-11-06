@@ -453,7 +453,7 @@ void VM::executeBuiltin(uint32_t builtinId, uint32_t argCount, int line) {
             else throw AlgoError("Mode de fichier invalide: '" + mode + "'", line);
 
 #ifdef _WIN32
-            file->stream.open(std::filesystem::u8path(path), m);
+            file->stream.open(utf8Path(path), m);
 #else
             file->stream.open(path, m);
 #endif

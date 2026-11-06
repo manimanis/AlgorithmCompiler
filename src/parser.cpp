@@ -223,9 +223,9 @@ void Parser::parseImport(Program& prog) {
     }
     consumeSemicolons();
 
-    std::filesystem::path targetPath(std::filesystem::u8path(filePathStr));
+    std::filesystem::path targetPath(utf8Path(filePathStr));
     if (targetPath.is_relative() && !currentFilePath_.empty()) {
-        std::filesystem::path curDir = std::filesystem::u8path(currentFilePath_).parent_path();
+        std::filesystem::path curDir = utf8Path(currentFilePath_).parent_path();
         if (!curDir.empty()) {
             targetPath = curDir / targetPath;
         }

@@ -8,11 +8,12 @@
 
 #ifdef _WIN32
 #include <windows.h>
-#elif defined(__APPLE__)
-#include <mach-o/dyld.h>
 #else
 #include <unistd.h>
 #include <sys/stat.h>
+#if defined(__APPLE__)
+#include <mach-o/dyld.h>
+#endif
 #endif
 
 namespace algo {
@@ -814,7 +815,6 @@ int runStandaloneExecutable(const std::string& path, int argc, char* argv[]) {
         std::cerr << "Erreur: Impossible d'ouvrir l'exécutable pour charger le bytecode.\n";
         return 1;
     }
-    std::streampos fileSize = is.tellg();
     is.seekg(-16, std::ios::end);
     uint64_t payloadSize = 0;
     is.read(reinterpret_cast<char*>(&payloadSize), 8);

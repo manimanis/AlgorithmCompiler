@@ -847,7 +847,7 @@ void Interpreter::executeProcedure(const std::string& name, const std::vector<st
         else throw AlgoError("Mode de fichier invalide: '" + mode + "'", line);
 
 #ifdef _WIN32
-        file->stream.open(std::filesystem::u8path(path), m);
+        file->stream.open(utf8Path(path), m);
 #else
         file->stream.open(path, m);
 #endif
@@ -1294,7 +1294,7 @@ void Interpreter::visit(DerefExpr& node) {
     evalResult_ = *(ptr.ptrVal);
 }
 
-void Interpreter::visit(NilExpr& node) {
+void Interpreter::visit([[maybe_unused]] NilExpr& node) {
     evalResult_ = Value::makeNil();
 }
 

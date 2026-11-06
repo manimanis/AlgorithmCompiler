@@ -321,7 +321,7 @@ int main(int argc, char* argv[]) {
     for (const auto& tf : tempFiles) {
         std::error_code ec;
 #ifdef _WIN32
-        std::filesystem::remove(std::filesystem::u8path(tf), ec);
+        std::filesystem::remove(utf8Path(tf), ec);
 #else
         std::filesystem::remove(std::filesystem::path(tf), ec);
 #endif

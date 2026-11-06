@@ -15,7 +15,7 @@ using namespace algo;
 
 static std::string readFile(const std::string& path) {
 #ifdef _WIN32
-    std::ifstream file(std::filesystem::u8path(path), std::ios::binary);
+    std::ifstream file(utf8Path(path), std::ios::binary);
 #else
     std::ifstream file(path, std::ios::binary);
 #endif
@@ -29,7 +29,7 @@ static std::string readFile(const std::string& path) {
 
 static void writeFile(const std::string& path, const std::string& content) {
 #ifdef _WIN32
-    std::ofstream file(std::filesystem::u8path(path), std::ios::binary);
+    std::ofstream file(utf8Path(path), std::ios::binary);
 #else
     std::ofstream file(path, std::ios::binary);
 #endif

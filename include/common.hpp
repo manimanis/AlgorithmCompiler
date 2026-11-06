@@ -24,8 +24,15 @@
 #include <unordered_map>
 #include <set>
 #include <variant>
+#include <filesystem>
+#include <string_view>
 
 namespace algo {
+
+// Convert UTF-8 std::string to std::filesystem::path in C++20 without deprecated u8path
+inline std::filesystem::path utf8Path(const std::string& p) {
+    return std::filesystem::path(std::u8string_view(reinterpret_cast<const char8_t*>(p.data()), p.size()));
+}
 
 // Custom exception for runtime and syntax errors
 class AlgoError : public std::runtime_error {
