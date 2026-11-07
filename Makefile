@@ -59,7 +59,7 @@ CXXFLAGS ?= -std=c++20 -O2 -Wall -Wextra -Iinclude
 LDFLAGS ?= $(STATIC_FLAGS) -s
 
 # Fichiers sources et objets
-SRCS_COMMON = src/lexer.cpp src/value.cpp src/parser.cpp src/interpreter.cpp src/bytecode.cpp src/bytecode_compiler.cpp src/vm.cpp src/semantic_analyzer.cpp
+SRCS_COMMON = src/lexer.cpp src/value.cpp src/parser.cpp src/interpreter.cpp src/bytecode.cpp src/bytecode_compiler.cpp src/vm.cpp src/semantic_analyzer.cpp src/signature_extractor.cpp
 SRCS_MAIN   = src/python_transpiler.cpp src/main.cpp
 SRCS_TEST   = src/test_runner.cpp
 SRCS_FUZZ   = src/fuzz_runner.cpp

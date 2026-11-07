@@ -2,7 +2,7 @@
 
 **AlgorithmCompiler** est un interpréteur, vérificateur sémantique statique et transpilateur haute performance pour le pseudo-code algorithmique standard utilisé dans l'enseignement secondaire et supérieur en Tunisie (programmes du Baccalauréat tunisien : Mathématiques, Sciences Expérimentales, Sciences de l'Informatique, Technique et Économie-Gestion).
 
-Le projet est développé en **C++20 moderne** et dispose d'une suite complète de **223 tests unitaires automatisés validés à 100%**, d'un **harnais de fuzzing automatisé** et d'un pipeline de **CI/CD multiplateforme** (Ubuntu, Windows, macOS).
+Le projet est développé en **C++20 moderne** et dispose d'une suite complète de **233 tests unitaires automatisés validés à 100%**, d'un **harnais de fuzzing automatisé** et d'un pipeline de **CI/CD multiplateforme** (Ubuntu, Windows, macOS).
 
 > 📚 **Documentation Complète & Manuel de Référence :**
 > - [📖 Guide Complet de Référence (Markdown)](docs/GUIDE_REFERENCE.md)
@@ -50,6 +50,7 @@ AlgorithmCompiler/
 │   ├── parser.hpp              # Analyseur syntaxique descendant récursif
 │   ├── python_transpiler.hpp   # Transpilateur vers code Python idiomatique
 │   ├── semantic_analyzer.hpp   # Analyseur sémantique statique & diagnostics
+│   ├── signature_extractor.hpp # Extracteur de signatures & générateur de tables TDO/TDOL/TDNT
 │   ├── token.hpp               # Définitions des types de jetons (Token)
 │   ├── value.hpp               # Modèle de valeur polymorphe (entier, réel, chaîne, tableau, enregistrement, pointeur, fichier)
 │   └── vm.hpp                  # Machine Virtuelle à pile haute performance (Bytecode VM)
@@ -60,6 +61,7 @@ AlgorithmCompiler/
 │   ├── vm.cpp                  # Implémentation du moteur de la machine virtuelle
 │   ├── semantic_analyzer.cpp   # Implémentation de la vérification sémantique
 │   ├── python_transpiler.cpp   # Implémentation du transpilateur Python
+│   ├── signature_extractor.cpp # Implémentation de l'extraction de signatures et inférence TDO/TDOL
 │   ├── interpreter.cpp         # Implémentation de l'interpréteur par Visiteur
 │   ├── parser.cpp              # Implémentation du parseur avec allocation d'arène
 │   ├── lexer.cpp               # Implémentation du lexer
@@ -501,6 +503,21 @@ algo.exe mon_programme.alg --compile-bc mon_programme.algb
 algo.exe mon_programme.alg -c
 ```
 
+### Extraire les Signatures et Générer les TDO / TDNT
+Extrait la signature de l'ensemble des sous-programmes (fonctions et procédures), leurs tables TDNT respectives et leurs tables d'objets locaux (TDOL). Si un sous-programme ou l'algorithme principal ne dispose pas de table TDO/TDOL déclarée, celle-ci est **automatiquement inférée et générée** à partir des variables et types utilisés dans le corps :
+```bash
+# Affichage standard formaté dans le terminal :
+algo.exe mon_programme.alg --signatures
+# ou syntaxe courte :
+algo.exe mon_programme.alg -s
+
+# Exportation vers un fichier texte :
+algo.exe mon_programme.alg -s signatures.txt
+
+# Exportation sous format JSON structuré :
+algo.exe mon_programme.alg -s --json
+```
+
 ### Transpiler vers Python
 Afficher le code Python généré dans le terminal :
 ```bash
@@ -519,6 +536,8 @@ Enregistrer le code Python directement dans un fichier :
 - `--ast` : Force l'exécution via l'Interpréteur d'AST classique (Patron Visiteur sans RTTI).
 - `--build-exe, -b [out.exe]` : Compile et produit un programme exécutable autonome indépendant (`.exe`) embarquant le bytecode et la VM.
 - `--compile-bc, -c [out.algb]` : Compile et sérialise le bytecode dans un fichier binaire `.algb`.
+- `-s, --signatures, --tdo [out]` : Renvoie la signature de tous les sous-programmes et leurs tables TDNT et TDO/TDOL respectifs (génère automatiquement le TDO/TDOL s'il n'existe pas).
+- `--json` : Formate la sortie en JSON (utilisable avec `--signatures`).
 - `--dump-bytecode` : Compile et affiche le désassemblage complet du bytecode généré sans exécuter.
 - `--to-python, --py [out.py]` : Transpile vers du code Python 3 (vers la sortie standard ou un fichier).
 - `--max-iter <N>` : Fixe la limite maximale d'itérations de boucle (défaut : 1 000 000).
@@ -529,7 +548,7 @@ Enregistrer le code Python directement dans un fichier :
 
 ## 🧪 Suite de Tests Automatisée, Fuzzing & CI/CD
 
-AlgorithmCompiler dispose d'une suite de **223 tests unitaires validés à 100%**, d'un **harnais de fuzzing automatisé** et d'un pipeline de **CI/CD GitHub Actions**.
+AlgorithmCompiler dispose d'une suite de **230 tests unitaires validés à 100%**, d'un **harnais de fuzzing automatisé** et d'un pipeline de **CI/CD GitHub Actions**.
 
 ### Lancer tous les tests unitaires en C++
 Sous Linux / macOS :
@@ -549,10 +568,10 @@ Résultats obtenus :
 ========================================================
                   RÉSULTATS DES TESTS                   
 ========================================================
- Total tests : 223
- Réussis     : 223
+ Total tests : 230
+ Réussis     : 230
  Échoués     : 0 (100% SUCCÈS)
- Durée       : ~1600 ms
+ Durée       : ~1700 ms
 ========================================================
 ```
 

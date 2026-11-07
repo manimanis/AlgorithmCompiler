@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AlgorithmCompiler v1.6.0 — Manuel de Référence & Aide Complète</title>
+    <title>AlgorithmCompiler v1.7.0 — Manuel de Référence & Aide Complète</title>
     <style>
         :root {
             --primary: #2563eb;
@@ -355,7 +355,7 @@
         <div class="brand-title">
             <span>⚡ algo.exe</span>
         </div>
-        <div class="brand-subtitle">AlgorithmCompiler v1.6.0</div>
+        <div class="brand-subtitle">AlgorithmCompiler v1.7.0</div>
 
         <input type="text" id="searchInput" class="search-box" placeholder="Rechercher une instruction..." onkeyup="filterDocs()">
 
@@ -405,7 +405,7 @@
     <main id="content">
         <!-- Hero Header -->
         <section class="hero-banner">
-            <h1>AlgorithmCompiler <span style="font-size: 1.2rem; color: var(--accent);">v1.6.0</span></h1>
+            <h1>AlgorithmCompiler <span style="font-size: 1.2rem; color: var(--accent);">v1.7.0</span></h1>
             <p>Interpréteur C++20 moderne, Machine Virtuelle à Bytecode optimisée, Analyseur Sémantique avec diagnostics visuels et Transpilateur Python 3 pour le standard officiel du Baccalauréat tunisien.</p>
             <div class="hero-badges">
                 <span class="badge green">✓ 223 Tests Unitaires (100% Succès)</span>
@@ -450,12 +450,22 @@ algo.exe [OPTIONS]</code><button class="copy-btn" onclick="copyCode(this)">Copie
                     <tr>
                         <td><code>-v, --version</code></td>
                         <td>—</td>
-                        <td>Affiche la version (v1.6.0), le compilateur hôte, la plateforme et le standard C++20.</td>
+                        <td>Affiche la version (v1.7.0), le compilateur hôte, la plateforme et le standard C++20.</td>
                     </tr>
                     <tr>
                         <td><code>--check</code></td>
                         <td>—</td>
                         <td>Exécute <strong>exclusivement l'analyse lexicale, syntaxique et sémantique</strong> (types, portées, arités) sans lancer l'exécution.</td>
+                    </tr>
+                    <tr>
+                        <td><code>-s, --signatures, --tdo</code></td>
+                        <td><code>[sortie.txt]</code></td>
+                        <td>Renvoie la <strong>signature de tous les sous-programmes</strong> et leurs tables <strong>TDNT et TDO/TDOL respectifs</strong> (génère automatiquement le TDO/TDOL s'il n'existe pas).</td>
+                    </tr>
+                    <tr>
+                        <td><code>--json</code></td>
+                        <td>—</td>
+                        <td>Formate la sortie en <strong>JSON structuré</strong> (combinable avec <code>--signatures</code>).</td>
                     </tr>
                     <tr>
                         <td><code>--vm</code></td>
@@ -590,7 +600,7 @@ Remplir, Trier, Afficher : Procédure</code><button class="copy-btn" onclick="co
                     </tr>
                     <tr>
                         <td><strong>Matrice 2D</strong></td>
-                        <td><code>M : Tableau de 3, 4 de réel</code><br>ou <code>Tableau de 3 lignes * 4 col...</code></td>
+                        <td><code>M : Tableau de 2 lignes * 2 colonnes de entier</code><br>ou <code>Tableau de 3, 4 de réel</code></td>
                         <td><code>M[i, j] ← 1.0</code> ou <code>M[i][j] ← 1.0</code></td>
                     </tr>
                     <tr>
@@ -783,7 +793,7 @@ Fin</code><button class="copy-btn" onclick="copyCode(this)">Copier</button></pre
                 <h3 id="inst-files">6.7 Manipulation de Fichiers (`Ouvrir`, `Lire_Ligne`, `Aller_A`, `Fermer`)</h3>
                 <pre><code>// 1. Écriture dans un fichier texte ("w" = écriture, "a" = ajout, "r" = lecture)
 Ouvrir(f, "resultats.txt", "w")
-Ecrire(f, "Algorithme v1.6.0")
+Ecrire(f, "Algorithme v1.7.0")
 Fermer(f)
 
 // 2. Lecture ligne à ligne jusqu'à la fin de fichier

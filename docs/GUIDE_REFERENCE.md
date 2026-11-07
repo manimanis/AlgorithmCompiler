@@ -1,7 +1,7 @@
 # 📖 Manuel de Référence Complet & Guide d'Utilisation
 
-**AlgorithmCompiler v1.6.0**  
-*Compilateur C++20, Interpréteur, Machine Virtuelle à Bytecode, Sérialiseur Binaire, Générateur d'Exécutables Autonomes (.exe) et Transpilateur Python pour le Pseudo-code Algorithmique du Baccalauréat Tunisien.*
+**AlgorithmCompiler v1.7.0**  
+*Compilateur C++20, Interpréteur, Machine Virtuelle à Bytecode, Sérialiseur Binaire, Générateur d'Exécutables Autonomes (.exe), Extracteur de Signatures & Tables TDO/TDNT et Transpilateur Python pour le Pseudo-code Algorithmique du Baccalauréat Tunisien.*
 
 ---
 
@@ -68,7 +68,7 @@ Développé en **C++20 moderne**, il réunit :
 - Un **interpréteur d'AST** haute précision reposant sur le patron Visiteur.
 - Une **Machine Virtuelle à Bytecode (VM)** avec optimiseur peephole et fast-paths optimisés pour des performances d'exécution maximales.
 - Un **transpilateur Python 3** produisant un code propre, idiomatique et sans dépendances superflues.
-- Une suite complète de **223 tests unitaires** couvrant l'ensemble du programme officiel et les sujets récents du Baccalauréat.
+- Une suite complète de **230 tests unitaires** couvrant l'ensemble du programme officiel et les sujets récents du Baccalauréat.
 
 ---
 
@@ -92,6 +92,8 @@ algo.exe [OPTIONS]
 | `--ast` | Force l'exécution via le moteur d'interprétation d'AST (Patron Visiteur). |
 | `--build-exe`, `-b [out.exe]` | Compile l'algorithme (`.alg` ou `.algb`) en un **exécutable autonome indépendant (.exe)** embarquant le bytecode et la VM. |
 | `--compile-bc`, `-c [out.algb]` | Compile l'algorithme et sérialise le bytecode dans un fichier binaire compact `.algb`. |
+| `-s`, `--signatures`, `--tdo [out]` | Renvoie la signature de tous les sous-programmes et leurs tables TDNT et TDO/TDOL respectifs (génère automatiquement le TDO/TDOL s'il n'existe pas). |
+| `--json` | Formate la sortie en JSON (utilisable avec `--signatures`). |
 | `--compare` | Exécute le programme d'abord avec l'AST puis avec la VM et compare les temps d'exécution. |
 | `--time`, `--bench` | Mesure et affiche le temps d'exécution en millisecondes (`Temps d'exécution : X ms`). |
 | `--dump-bytecode` | Désassemble et affiche les instructions bytecode du programme compilé sans l'exécuter. |
@@ -114,17 +116,22 @@ algo.exe [OPTIONS]
 algo.exe programme.alg
 algo.exe programme.algb
 
-# 2. Compiler en exécutable autonome indépendant (.exe)
+# 2. Extraire les signatures et générer les tables TDO / TDNT
+algo.exe programme.alg --signatures
+algo.exe programme.alg -s
+algo.exe programme.alg -s --json
+
+# 3. Compiler en exécutable autonome indépendant (.exe)
 algo.exe programme.alg --build-exe mon_programme.exe
 # ou syntaxe rapide :
 algo.exe programme.alg -b
 # Exécution directe sur toute machine Windows :
 .\mon_programme.exe
 
-# 3. Compiler en bytecode binaire (.algb)
+# 4. Compiler en bytecode binaire (.algb)
 algo.exe programme.alg --compile-bc mon_programme.algb
 
-# 4. Vérification sémantique statique (mode pédagogique / CI)
+# 5. Vérification sémantique statique (mode pédagogique / CI)
 algo.exe devoir.alg --check
 
 # 5. Mesurer la performance d'exécution
@@ -183,7 +190,7 @@ Permet de définir des alias de types, des énumérations, des tableaux typés e
 ```algorithme
 TDNT
 TabNotes = Tableau de 30 réel
-Matrice = Tableau de 10 lignes * 10 colonnes de entier
+Mat10 = Tableau de 10 lignes * 10 colonnes de entier
 Etudiant = Enregistrement
     matricule : entier
     nom : chaîne
@@ -913,4 +920,4 @@ racine : Arbre
 
 ---
 
-*Document généré pour AlgorithmCompiler v1.6.0 — Standard Algorithmique du Baccalauréat Tunisien.*
+*Document généré pour AlgorithmCompiler v1.7.0 — Standard Algorithmique du Baccalauréat Tunisien.*

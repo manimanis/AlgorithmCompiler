@@ -6,6 +6,7 @@
 #include "../include/bytecode_compiler.hpp"
 #include "../include/vm.hpp"
 #include "../include/version.hpp"
+#include "../include/signature_extractor.hpp"
 #include <fstream>
 #include <iostream>
 #include <iomanip>
@@ -74,6 +75,10 @@ static void printHelp(const std::string& progPath) {
               << "    -b, --build-exe [out.exe]     Compile l'algorithme sous forme d'un programme exécutable\n"
               << "                                  autonome (.exe) indépendant, sans dépendance externe.\n"
               << "    -c, --compile-bc [out.algb]   Compile l'algorithme en fichier binaire de bytecode (.algb).\n"
+              << "    -s, --signatures, --tdo [out] Renvoie la signature de tous les sous-programmes et leurs\n"
+              << "                                  tables TDO/TDOL et TDNT respectifs (génère automatiquement\n"
+              << "                                  le TDO/TDOL s'il n'existe pas dans le code source).\n"
+              << "    --json                        Formate la sortie en JSON (utilisable avec --signatures).\n"
               << "    --check                       Effectue uniquement l'analyse syntaxique et sémantique\n"
               << "                                  (vérification des types, portées, arités, etc.)\n"
               << "                                  sans exécuter l'algorithme.\n"
@@ -136,6 +141,9 @@ int main(int argc, char* argv[]) {
     bool dumpBytecode = false;
     bool compareModes = false;
     bool showTime = false;
+    bool showSignatures = false;
+    std::string signaturesOutputPath;
+    bool outputJson = false;
 
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
@@ -145,6 +153,13 @@ int main(int argc, char* argv[]) {
         } else if (arg == "-v" || arg == "--version") {
             printVersion();
             return 0;
+        } else if (arg == "-s" || arg == "--signatures" || arg == "--tdo") {
+            showSignatures = true;
+            if (i + 1 < argc && argv[i + 1][0] != '-') {
+                signaturesOutputPath = argv[++i];
+            }
+        } else if (arg == "--json") {
+            outputJson = true;
         } else if (arg == "-b" || arg == "--build-exe") {
             buildExe = true;
             if (i + 1 < argc && argv[i + 1][0] != '-') {
@@ -258,6 +273,19 @@ int main(int argc, char* argv[]) {
         Parser parser(std::move(tokens));
         parser.setCurrentFilePath(filePath);
         Program prog = parser.parse();
+
+        if (showSignatures) {
+            SignatureExtractor extractor(prog);
+            auto sigResult = extractor.extract();
+            std::string outputText = outputJson ? sigResult.formatJson() : sigResult.formatText();
+            if (!signaturesOutputPath.empty()) {
+                writeFile(signaturesOutputPath, outputText);
+                std::cout << "[OK] Signatures et TDO/TDNT exportés vers : " << signaturesOutputPath << std::endl;
+            } else {
+                std::cout << outputText;
+            }
+            return 0;
+        }
 
         SemanticAnalyzer analyzer(source);
         auto diags = analyzer.analyze(prog);

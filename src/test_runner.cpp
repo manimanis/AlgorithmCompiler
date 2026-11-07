@@ -5,6 +5,7 @@
 #include "../include/vm.hpp"
 #include "../include/semantic_analyzer.hpp"
 #include "../include/version.hpp"
+#include "../include/signature_extractor.hpp"
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -89,6 +90,293 @@ static TestDirectives parseDirectives(const std::string& source) {
     d.timeoutMs = opts.timeoutMs;
     d.seed = opts.seed;
     return d;
+}
+
+static void runSignatureExtractorUnitTests(int& passed, int& failed, int& totalUnitTests) {
+    std::cout << "\n--- Tests unitaires : Extraction des Signatures & TDO / TDNT ---\n";
+
+    // Test 1: Signatures avec TDOL explicite
+    {
+        totalUnitTests++;
+        try {
+            std::string src = 
+                "Procédure Saisir(@n: entier)\n"
+                "Début\n"
+                "    n ← 5\n"
+                "Fin\n"
+                "Fonction Est_Premier(n: entier): booléen\n"
+                "Début\n"
+                "    premier ← Vrai\n"
+                "    Pour d de 2 à n - 1 Faire\n"
+                "        Si n mod d = 0 Alors premier ← Faux Fin Si\n"
+                "    Fin Pour\n"
+                "    Retourner premier\n"
+                "Fin\n"
+                "TDOL\n"
+                "Objet : Type/Nature\n"
+                "d : entier\n"
+                "premier : booléen\n"
+                "Algorithme TestA\n"
+                "Début\n"
+                "    Saisir(n)\n"
+                "Fin\n"
+                "TDO\n"
+                "Objet : Type/Nature\n"
+                "n : entier\n";
+
+            auto res = SignatureExtractor::extractFromSource(src);
+            bool ok = true;
+            if (res.subprograms.size() != 2) ok = false;
+            if (ok && res.subprograms[0].signature.formatSignature() != "Procédure Saisir(@n: entier)") ok = false;
+            if (ok && res.subprograms[1].signature.formatSignature() != "Fonction Est_Premier(n: entier): booléen") ok = false;
+            if (ok && res.subprograms[1].isTdolGenerated) ok = false;
+            if (ok && res.subprograms[1].tdol.size() != 2) ok = false;
+
+            if (ok) {
+                std::cout << " [PASS] unit/signatures_explicit_tdol\n";
+                passed++;
+            } else {
+                std::cout << " [FAIL] unit/signatures_explicit_tdol\n";
+                failed++;
+            }
+        } catch (const std::exception& e) {
+            std::cout << " [FAIL] unit/signatures_explicit_tdol (" << e.what() << ")\n";
+            failed++;
+        }
+    }
+
+    // Test 2: Inférence et génération automatique de TDOL / TDO
+    {
+        totalUnitTests++;
+        try {
+            std::string src = 
+                "Fonction Calcul(n: entier): réel\n"
+                "Début\n"
+                "    total ← 0.0\n"
+                "    Pour idx de 1 à n Faire\n"
+                "        val ← idx * 2.5\n"
+                "        total ← total + val\n"
+                "    Fin Pour\n"
+                "    msg ← \"Termine\"\n"
+                "    ok ← Vrai\n"
+                "    Retourner total\n"
+                "Fin\n"
+                "Algorithme TestB\n"
+                "Début\n"
+                "    res ← Calcul(10)\n"
+                "Fin\n";
+
+            auto res = SignatureExtractor::extractFromSource(src);
+            bool ok = true;
+            if (res.subprograms.size() != 1) ok = false;
+            if (ok && !res.subprograms[0].isTdolGenerated) ok = false;
+            if (ok && !res.isMainTdoGenerated) ok = false;
+
+            auto hasVar = [](const std::vector<TdoEntry>& entries, const std::string& varName, const std::string& expectedType) {
+                for (const auto& e : entries) {
+                    for (const auto& n : e.names) {
+                        if (normalize(n) == normalize(varName)) {
+                            return normalize(e.typeOrNature) == normalize(expectedType);
+                        }
+                    }
+                }
+                return false;
+            };
+
+            if (ok && !hasVar(res.subprograms[0].tdol, "idx", "entier")) ok = false;
+            if (ok && !hasVar(res.subprograms[0].tdol, "total", "réel")) ok = false;
+            if (ok && !hasVar(res.subprograms[0].tdol, "msg", "chaîne")) ok = false;
+            if (ok && !hasVar(res.subprograms[0].tdol, "ok", "booléen")) ok = false;
+            if (ok && !hasVar(res.mainTdo, "res", "réel")) ok = false;
+
+            if (ok) {
+                std::cout << " [PASS] unit/signatures_tdol_auto_generation\n";
+                passed++;
+            } else {
+                std::cout << " [FAIL] unit/signatures_tdol_auto_generation\n";
+                failed++;
+            }
+        } catch (const std::exception& e) {
+            std::cout << " [FAIL] unit/signatures_tdol_auto_generation (" << e.what() << ")\n";
+            failed++;
+        }
+    }
+
+    // Test 3: Filtrage TDNT respectif
+    {
+        totalUnitTests++;
+        try {
+            std::string src = 
+                "Procédure TraiterA(a: TypeA)\n"
+                "Début\n"
+                "Fin\n"
+                "Procédure TraiterB(b: TypeB)\n"
+                "Début\n"
+                "Fin\n"
+                "Algorithme TestC\n"
+                "Début\n"
+                "Fin\n"
+                "TDNT\n"
+                "TypeA = Tableau de 5 entier\n"
+                "TypeB = Enregistrement x: réel Fin\n"
+                "TypeC = Tableau de 10 chaîne\n";
+
+            auto res = SignatureExtractor::extractFromSource(src);
+            bool ok = true;
+            if (res.subprograms.size() != 2) ok = false;
+            if (ok && (res.subprograms[0].respectiveTdnt.size() != 1 || res.subprograms[0].respectiveTdnt[0].name != "TypeA")) ok = false;
+            if (ok && (res.subprograms[1].respectiveTdnt.size() != 1 || res.subprograms[1].respectiveTdnt[0].name != "TypeB")) ok = false;
+            if (ok && res.globalTdnt.size() != 3) ok = false;
+
+            if (ok) {
+                std::cout << " [PASS] unit/signatures_respective_tdnt_filtering\n";
+                passed++;
+            } else {
+                std::cout << " [FAIL] unit/signatures_respective_tdnt_filtering\n";
+                failed++;
+            }
+        } catch (const std::exception& e) {
+            std::cout << " [FAIL] unit/signatures_respective_tdnt_filtering (" << e.what() << ")\n";
+            failed++;
+        }
+    }
+
+    // Test 4: Formatage texte et JSON
+    {
+        totalUnitTests++;
+        try {
+            std::string src = 
+                "Fonction Doubler(x: entier): entier\n"
+                "Début\n"
+                "    res ← x * 2\n"
+                "    Retourner res\n"
+                "Fin\n"
+                "Algorithme TestD\n"
+                "Début\n"
+                "Fin\n";
+
+            auto res = SignatureExtractor::extractFromSource(src);
+            std::string txt = res.formatText();
+            std::string json = res.formatJson();
+            bool ok = true;
+            if (txt.find("Fonction Doubler(x: entier): entier") == std::string::npos) ok = false;
+            if (txt.find("TDOL (généré automatiquement)") == std::string::npos) ok = false;
+            if (json.find("\"kind\": \"function\"") == std::string::npos) ok = false;
+            if (json.find("\"is_tdol_generated\": true") == std::string::npos) ok = false;
+
+            if (ok) {
+                std::cout << " [PASS] unit/signatures_formatting_text_and_json\n";
+                passed++;
+            } else {
+                std::cout << " [FAIL] unit/signatures_formatting_text_and_json\n";
+                failed++;
+            }
+        } catch (const std::exception& e) {
+            std::cout << " [FAIL] unit/signatures_formatting_text_and_json (" << e.what() << ")\n";
+            failed++;
+        }
+    }
+
+    // Test 5: Formatage TDNT matrice (Tableau de N lignes * M colonnes de <type>)
+    {
+        totalUnitTests++;
+        try {
+            std::string src = 
+                "Procédure Remplir(m: MaMatrice)\n"
+                "Début\n"
+                "Fin\n"
+                "Algorithme TestMatriceFormat\n"
+                "Début\n"
+                "Fin\n"
+                "TDNT\n"
+                "MaMatrice = Tableau de 3 lignes * 4 colonnes de entier\n";
+
+            auto res = SignatureExtractor::extractFromSource(src);
+            std::string txt = res.formatText();
+            bool ok = true;
+            if (txt.find("MaMatrice = Tableau de 3 lignes * 4 colonnes de entier") == std::string::npos) ok = false;
+
+            if (ok) {
+                std::cout << " [PASS] unit/signatures_matrix_format\n";
+                passed++;
+            } else {
+                std::cout << " [FAIL] unit/signatures_matrix_format\n";
+                failed++;
+            }
+        } catch (const std::exception& e) {
+            std::cout << " [FAIL] unit/signatures_matrix_format (" << e.what() << ")\n";
+            failed++;
+        }
+    }
+
+    // Test 6: Inférence et découverte automatique du TDNT (Enregistrement et Tableau)
+    {
+        totalUnitTests++;
+        try {
+            std::string src = 
+                "Procédure AfficherNotes(t: TabNotes, n: entier)\n"
+                "Début\n"
+                "    Pour i de 0 à n - 1 Faire\n"
+                "        Ecrire(t[i])\n"
+                "    Fin Pour\n"
+                "Fin\n"
+                "Fonction EstMajeur(e: Etudiant): booléen\n"
+                "Début\n"
+                "    Retourner e.age >= 18\n"
+                "Fin\n"
+                "Algorithme TestTdntInference\n"
+                "Début\n"
+                "    notes[0] ← 15.5\n"
+                "    notes[1] ← 18.0\n"
+                "    AfficherNotes(notes, 2)\n"
+                "    e.age ← 20\n"
+                "    Si EstMajeur(e) Alors\n"
+                "        Ecrire(\"Admis\")\n"
+                "    Fin Si\n"
+                "Fin\n";
+
+            auto res = SignatureExtractor::extractFromSource(src);
+            bool ok = true;
+            if (!res.isGlobalTdntGenerated) ok = false;
+            if (res.globalTdnt.size() < 2) ok = false;
+
+            bool foundEtudiant = false;
+            bool foundTabNotes = false;
+            for (const auto& td : res.globalTdnt) {
+                if (td.name == "Etudiant" && td.typeSpec.kind == TypeKind::Record) {
+                    if (!td.typeSpec.fields.empty() && td.typeSpec.fields[0]->names[0] == "age") {
+                        foundEtudiant = true;
+                    }
+                }
+                if (td.name == "TabNotes" && td.typeSpec.kind == TypeKind::Array1D) {
+                    foundTabNotes = true;
+                }
+            }
+            if (!foundEtudiant || !foundTabNotes) ok = false;
+
+            // Vérifier que le TDO principal a bien typé e : Etudiant et notes : TabNotes
+            bool foundTdoE = false;
+            bool foundTdoNotes = false;
+            for (const auto& entry : res.mainTdo) {
+                for (const auto& n : entry.names) {
+                    if (n == "e" && entry.typeOrNature == "Etudiant") foundTdoE = true;
+                    if (n == "notes" && entry.typeOrNature == "TabNotes") foundTdoNotes = true;
+                }
+            }
+            if (!foundTdoE || !foundTdoNotes) ok = false;
+
+            if (ok) {
+                std::cout << " [PASS] unit/signatures_inferred_tdnt_record_and_array\n";
+                passed++;
+            } else {
+                std::cout << " [FAIL] unit/signatures_inferred_tdnt_record_and_array\n";
+                failed++;
+            }
+        } catch (const std::exception& e) {
+            std::cout << " [FAIL] unit/signatures_inferred_tdnt_record_and_array (" << e.what() << ")\n";
+            failed++;
+        }
+    }
 }
 
 int main(int argc, char* argv[]) {
@@ -298,13 +586,16 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    int unitTestsCount = 0;
+    runSignatureExtractorUnitTests(passed, failed, unitTestsCount);
+
     auto tEnd = std::chrono::steady_clock::now();
     auto durationMs = std::chrono::duration_cast<std::chrono::milliseconds>(tEnd - tStart).count();
 
     std::cout << "\n========================================================\n";
     std::cout << "                  RÉSULTATS DES TESTS                   \n";
     std::cout << "========================================================\n";
-    std::cout << " Total tests : " << testFiles.size() << "\n";
+    std::cout << " Total tests : " << (testFiles.size() + unitTestsCount) << "\n";
     std::cout << " Réussis     : " << passed << "\n";
     std::cout << " Échoués     : " << failed << "\n";
     std::cout << " Durée       : " << durationMs << " ms\n";

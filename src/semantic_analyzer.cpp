@@ -606,7 +606,11 @@ static void collectModifiedVars(const std::vector<std::shared_ptr<Stmt>>& stmts,
                 out.insert(normalize(varExpr->name));
             }
         } else if (auto ma = std::dynamic_pointer_cast<MemberAssignStmt>(stmt)) {
-            if (auto varExpr = std::dynamic_pointer_cast<VariableExpr>(ma->target)) {
+            std::shared_ptr<Expr> root = ma->target;
+            while (auto memAcc = std::dynamic_pointer_cast<MemberAccessExpr>(root)) {
+                root = memAcc->object;
+            }
+            if (auto varExpr = std::dynamic_pointer_cast<VariableExpr>(root)) {
                 out.insert(normalize(varExpr->name));
             }
         } else if (auto alloc = std::dynamic_pointer_cast<AllocStmt>(stmt)) {
@@ -624,7 +628,11 @@ static void collectModifiedVars(const std::vector<std::shared_ptr<Stmt>>& stmts,
         } else if (auto rd = std::dynamic_pointer_cast<ReadStmt>(stmt)) {
             for (const auto& tgt : rd->targets) {
                 if (!tgt.name.empty()) out.insert(normalize(tgt.name));
-                if (auto varExpr = std::dynamic_pointer_cast<VariableExpr>(tgt.targetExpr)) {
+                std::shared_ptr<Expr> root = tgt.targetExpr;
+                while (auto memAcc = std::dynamic_pointer_cast<MemberAccessExpr>(root)) {
+                    root = memAcc->object;
+                }
+                if (auto varExpr = std::dynamic_pointer_cast<VariableExpr>(root)) {
                     out.insert(normalize(varExpr->name));
                 }
             }
@@ -753,12 +761,36 @@ void SemanticAnalyzer::checkStmt(const std::shared_ptr<Stmt>& stmt) {
 
     if (auto ma = std::dynamic_pointer_cast<MemberAssignStmt>(stmt)) {
         ExprTypeInfo objInfo = resolveExprTypeInfo(ma->target);
-        if (objInfo.typeSpec.kind == TypeKind::Pointer || (!objInfo.typeName.empty() && objInfo.typeName[0] == '^')) {
+        bool isPointer = (objInfo.typeSpec.kind == TypeKind::Pointer || (!objInfo.typeName.empty() && objInfo.typeName[0] == '^'));
+        if (isPointer) {
             std::string pointee = objInfo.typeSpec.elemType.empty() ? objInfo.typeName.substr(1) : objInfo.typeSpec.elemType;
             objInfo.typeName = pointee;
             auto itP = typeMap_.find(normalize(pointee));
             if (itP != typeMap_.end()) objInfo.typeSpec = itP->second.typeSpec;
         }
+
+        // Identifier la variable racine
+        std::shared_ptr<Expr> rootExpr = ma->target;
+        bool hasDeref = isPointer;
+        while (auto memAcc = std::dynamic_pointer_cast<MemberAccessExpr>(rootExpr)) {
+            ExprTypeInfo innerInfo = resolveExprTypeInfo(memAcc->object);
+            if (innerInfo.typeSpec.kind == TypeKind::Pointer || (!innerInfo.typeName.empty() && innerInfo.typeName[0] == '^')) {
+                hasDeref = true;
+            }
+            rootExpr = memAcc->object;
+        }
+
+        if (auto varExpr = std::dynamic_pointer_cast<VariableExpr>(rootExpr)) {
+            if (constNames_.find(normalize(varExpr->name)) != constNames_.end()) {
+                reportError(ma->line, -1, varExpr->name,
+                            "Impossible de modifier la constante '" + varExpr->name + "'.");
+                return;
+            }
+            if (!hasDeref) {
+                assignedVars_.insert(normalize(varExpr->name));
+            }
+        }
+
         checkExpr(ma->target);
         const std::vector<std::shared_ptr<VarDecl>>* fields = nullptr;
         if (!objInfo.typeSpec.fields.empty()) {
@@ -801,7 +833,7 @@ void SemanticAnalyzer::checkStmt(const std::shared_ptr<Stmt>& stmt) {
                         "Affectation de type incompatible pour le champ '" + ma->member + "' : attendu '" +
                         expectedFieldType + "', mais obtenu '" + valType + "'.");
         }
-        if (auto varExpr = std::dynamic_pointer_cast<VariableExpr>(ma->target)) {
+        if (auto varExpr = std::dynamic_pointer_cast<VariableExpr>(rootExpr)) {
             assignedVars_.insert(normalize(varExpr->name));
         }
         return;
@@ -1012,11 +1044,22 @@ void SemanticAnalyzer::checkStmt(const std::shared_ptr<Stmt>& stmt) {
                 if (!isLValue(tgt.targetExpr)) {
                     reportError(rd->line, -1, "Lire", "L'instruction 'Lire' attend une variable ou un emplacement modifiable.");
                 }
-                if (auto varExpr = std::dynamic_pointer_cast<VariableExpr>(tgt.targetExpr)) {
+                std::shared_ptr<Expr> rootExpr = tgt.targetExpr;
+                bool hasDeref = false;
+                while (auto memAcc = std::dynamic_pointer_cast<MemberAccessExpr>(rootExpr)) {
+                    ExprTypeInfo innerInfo = resolveExprTypeInfo(memAcc->object);
+                    if (innerInfo.typeSpec.kind == TypeKind::Pointer || (!innerInfo.typeName.empty() && innerInfo.typeName[0] == '^')) {
+                        hasDeref = true;
+                    }
+                    rootExpr = memAcc->object;
+                }
+                if (auto varExpr = std::dynamic_pointer_cast<VariableExpr>(rootExpr)) {
                     if (constNames_.find(normalize(varExpr->name)) != constNames_.end()) {
                         reportError(rd->line, -1, varExpr->name, "Impossible de modifier la constante '" + varExpr->name + "'.");
                     }
-                    assignedVars_.insert(normalize(varExpr->name));
+                    if (!hasDeref) {
+                        assignedVars_.insert(normalize(varExpr->name));
+                    }
                 }
                 checkExpr(tgt.targetExpr);
             }
