@@ -11,6 +11,7 @@ struct InterpreterOptions {
     uint64_t maxIterations = 1000000;
     uint64_t timeoutMs = 50000;
     uint32_t seed = 0;
+    bool leakCheck = false;
 
     static InterpreterOptions fromSource(const std::string& source);
     static InterpreterOptions fromSource(const std::string& source, const InterpreterOptions& base);
@@ -59,6 +60,9 @@ public:
     void addInput(const std::string& input) { inputBuffer_.push_back(input); }
     const std::vector<std::string>& getOutput() const { return output_; }
     std::shared_ptr<Environment> getGlobalEnv() const { return globalEnv_; }
+    const MemoryTracker& getMemoryTracker() const { return memoryTracker_; }
+    MemoryTracker& getMemoryTracker() { return memoryTracker_; }
+    const std::vector<StackFrame>& getCallStack() const { return callStack_; }
 
     void run(const Program& prog);
 
@@ -133,6 +137,8 @@ private:
     uint64_t iterationCount_ = 0;
     std::chrono::steady_clock::time_point startTime_;
     Mulberry32RNG rng_;
+    MemoryTracker memoryTracker_;
+    std::vector<StackFrame> callStack_;
 
     // Visitor execution context
     std::shared_ptr<Environment> currentEnv_;

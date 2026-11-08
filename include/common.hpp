@@ -34,12 +34,146 @@ inline std::filesystem::path utf8Path(const std::string& p) {
     return std::filesystem::path(std::u8string_view(reinterpret_cast<const char8_t*>(p.data()), p.size()));
 }
 
+// Structure représentant un niveau de la pile d'appels d'exécution
+struct StackFrame {
+    std::string functionName;
+    int line = -1;
+    int column = -1;
+
+    StackFrame() = default;
+    StackFrame(std::string name, int l = -1, int c = -1)
+        : functionName(std::move(name)), line(l), column(c) {}
+};
+
 // Custom exception for runtime and syntax errors
 class AlgoError : public std::runtime_error {
 public:
     int line;
+    std::string rawMessage;
+    std::vector<StackFrame> callStack;
+
     AlgoError(const std::string& msg, int line = -1)
-        : std::runtime_error(line > 0 ? msg + " (ligne " + std::to_string(line) + ")" : msg), line(line) {}
+        : std::runtime_error(line > 0 ? msg + " (ligne " + std::to_string(line) + ")" : msg),
+          line(line), rawMessage(msg) {}
+
+    AlgoError(const std::string& msg, int line, const std::vector<StackFrame>& stack)
+        : std::runtime_error(line > 0 ? msg + " (ligne " + std::to_string(line) + ")" : msg),
+          line(line), rawMessage(msg), callStack(stack) {}
+
+    std::string formatStackTrace(const std::string& sourceCode = "") const {
+        std::ostringstream oss;
+        oss << "==============================================================================\n"
+            << " ERREUR D'EXÉCUTION : " << rawMessage;
+        if (line > 0) {
+            oss << " (ligne " << line << ")";
+        }
+        oss << "\n==============================================================================\n";
+
+        if (!sourceCode.empty() && line > 0) {
+            std::istringstream iss(sourceCode);
+            std::string curLineText;
+            int curNum = 1;
+            while (std::getline(iss, curLineText)) {
+                if (!curLineText.empty() && curLineText.back() == '\r') curLineText.pop_back();
+                if (curNum == line) {
+                    oss << " -> Ligne " << line << " :\n";
+                    oss << "    " << curLineText << "\n";
+                    // Afficher le pointeur sous le code
+                    size_t firstNonSpace = curLineText.find_first_not_of(" \t");
+                    if (firstNonSpace != std::string::npos) {
+                        oss << "    " << std::string(firstNonSpace, ' ') << "^~~~~~\n";
+                    }
+                    break;
+                }
+                curNum++;
+            }
+        }
+
+        if (!callStack.empty()) {
+            oss << "\nTrace de la pile d'appels (Call Stack) :\n";
+            for (size_t i = 0; i < callStack.size(); ++i) {
+                const auto& frame = callStack[callStack.size() - 1 - i];
+                oss << "  #" << i << "  " << frame.functionName;
+                if (frame.line > 0) {
+                    oss << " (ligne " << frame.line << ")";
+                }
+                oss << "\n";
+            }
+        }
+        oss << "==============================================================================\n";
+        return oss.str();
+    }
+};
+
+// Information sur une allocation dynamique pour le Memory Leak Checker
+struct MemoryAllocation {
+    uint64_t id = 0;
+    void* address = nullptr;
+    std::string typeName;
+    int line = -1;
+};
+
+// Gestionnaire de détection des fuites de mémoire (Memory Leak Checker)
+class MemoryTracker {
+public:
+    void recordAlloc(void* addr, const std::string& typeName, int line) {
+        if (!addr) return;
+        allocations_[addr] = {++nextId_, addr, typeName, line};
+    }
+
+    void recordFree(void* addr) {
+        if (!addr) return;
+        allocations_.erase(addr);
+    }
+
+    bool hasLeaks() const {
+        return !allocations_.empty();
+    }
+
+    size_t leakCount() const {
+        return allocations_.size();
+    }
+
+    std::vector<MemoryAllocation> getLeaks() const {
+        std::vector<MemoryAllocation> res;
+        res.reserve(allocations_.size());
+        for (const auto& kv : allocations_) {
+            res.push_back(kv.second);
+        }
+        std::sort(res.begin(), res.end(), [](const MemoryAllocation& a, const MemoryAllocation& b) {
+            return a.id < b.id;
+        });
+        return res;
+    }
+
+    std::string formatLeakReport() const {
+        if (allocations_.empty()) return "";
+        std::ostringstream oss;
+        oss << "==============================================================================\n"
+            << " AVERTISSEMENT : FUITE DE MÉMOIRE DÉTECTÉE (MEMORY LEAK CHECKER)\n"
+            << "==============================================================================\n"
+            << " Nombre de bloc(s) dynamique(s) alloué(s) non libéré(s) : " << allocations_.size() << "\n\n";
+        auto leaks = getLeaks();
+        for (size_t i = 0; i < leaks.size(); ++i) {
+            oss << "  #" << (i + 1) << "  Bloc de type '" << (leaks[i].typeName.empty() ? "inconnu" : leaks[i].typeName) << "'";
+            if (leaks[i].line > 0) {
+                oss << " alloué à la ligne " << leaks[i].line;
+            }
+            oss << " (non libéré)\n";
+        }
+        oss << "\n Conseil pédagogique : Pensez à libérer chaque variable allouée avec 'Liberer(...)'.\n"
+            << "==============================================================================\n";
+        return oss.str();
+    }
+
+    void reset() {
+        allocations_.clear();
+        nextId_ = 0;
+    }
+
+private:
+    uint64_t nextId_ = 0;
+    std::unordered_map<void*, MemoryAllocation> allocations_;
 };
 
 // Normalize a string by converting to lowercase and stripping French accents

@@ -32,6 +32,9 @@ public:
 
     void addInput(const std::string& input) { inputBuffer_.push_back(input); }
     const std::vector<std::string>& getOutput() const { return output_; }
+    const MemoryTracker& getMemoryTracker() const { return memoryTracker_; }
+    MemoryTracker& getMemoryTracker() { return memoryTracker_; }
+    std::vector<StackFrame> getCallStack() const;
 
     void run(const BytecodeProgram& prog);
 
@@ -59,6 +62,7 @@ private:
     uint64_t instructionCount_ = 0;
     std::chrono::steady_clock::time_point startTime_;
     Mulberry32RNG rng_;
+    MemoryTracker memoryTracker_;
 
     void push(Value val);
     Value pop();

@@ -217,6 +217,10 @@ void Interpreter::run(const Program& prog) {
     currentSubroutine_.clear();
     openFiles_.clear();
     enumOrdinals_.clear();
+    memoryTracker_.reset();
+    callStack_.clear();
+    int progLine = !prog.mainBody.empty() ? prog.mainBody.front()->line : 1;
+    callStack_.push_back(StackFrame("Algorithme " + prog.name, progLine, -1));
 
     for (const auto& td : prog.typeDecls) {
         typeDefs_[normalize(td.name)] = td;
@@ -252,16 +256,23 @@ void Interpreter::run(const Program& prog) {
         }
     }
 
-    if (!prog.mainBody.empty()) {
-        executeBlock(prog.mainBody, globalEnv_);
-        return;
+    try {
+        if (!prog.mainBody.empty()) {
+            executeBlock(prog.mainBody, globalEnv_);
+        } else if (procedures_.find("main") != procedures_.end()) {
+            executeProcedure("main", {}, globalEnv_);
+        } else if (procedures_.find("principal") != procedures_.end()) {
+            executeProcedure("principal", {}, globalEnv_);
+        }
+    } catch (AlgoError& e) {
+        if (e.callStack.empty()) {
+            e.callStack = callStack_;
+        }
+        throw;
     }
 
-    // Check if procedure 'main' or 'principal' exists
-    if (procedures_.find("main") != procedures_.end()) {
-        executeProcedure("main", {}, globalEnv_);
-    } else if (procedures_.find("principal") != procedures_.end()) {
-        executeProcedure("principal", {}, globalEnv_);
+    if (options_.leakCheck && memoryTracker_.hasLeaks()) {
+        addOutput(memoryTracker_.formatLeakReport());
     }
 }
 
@@ -560,13 +571,23 @@ void Interpreter::visit(AllocStmt& node) {
     checkTimeout(node.line);
     std::string pointeeType = resolvePointeeType(node.target);
     Value initialVal = getDefaultValue(pointeeType);
-    Value newPtr = Value::makePointer(std::make_shared<Value>(std::move(initialVal)));
+    auto rawVal = std::make_shared<Value>(std::move(initialVal));
+    memoryTracker_.recordAlloc(rawVal.get(), pointeeType, node.line);
+    Value newPtr = Value::makePointer(rawVal);
     assignToLValue(node.target, newPtr, currentEnv_, node.line);
 }
 
 void Interpreter::visit(FreeStmt& node) {
     checkIterationLimit(node.line);
     checkTimeout(node.line);
+    if (node.target) {
+        try {
+            Value cur = evaluateExpression(node.target, currentEnv_);
+            if (cur.isPointer() && cur.ptrVal) {
+                memoryTracker_.recordFree(cur.ptrVal.get());
+            }
+        } catch (...) {}
+    }
     assignToLValue(node.target, Value::makeNil(), currentEnv_, node.line);
 }
 
@@ -1015,8 +1036,17 @@ void Interpreter::executeProcedure(const std::string& name, const std::vector<st
         }
     }
 
-    executeBlock(proc.body, localEnv);
+    callStack_.push_back(StackFrame("Procédure " + proc.name, line, -1));
+    try {
+        executeBlock(proc.body, localEnv);
+    } catch (AlgoError& e) {
+        if (e.callStack.empty()) e.callStack = callStack_;
+        currentSubroutine_ = oldSub;
+        callStack_.pop_back();
+        throw;
+    }
     currentSubroutine_ = oldSub;
+    callStack_.pop_back();
 }
 
 Value Interpreter::executeFunction(const std::string& name, const std::vector<std::shared_ptr<Expr>>& args,
@@ -1091,8 +1121,17 @@ Value Interpreter::executeFunction(const std::string& name, const std::vector<st
     auto oldRet = returnValue_;
     returnValue_ = {false, getDefaultValue(func.returnType)};
 
-    executeBlock(func.body, localEnv);
+    callStack_.push_back(StackFrame("Fonction " + func.name, line, -1));
+    try {
+        executeBlock(func.body, localEnv);
+    } catch (AlgoError& e) {
+        if (e.callStack.empty()) e.callStack = callStack_;
+        currentSubroutine_ = oldSub;
+        callStack_.pop_back();
+        throw;
+    }
     currentSubroutine_ = oldSub;
+    callStack_.pop_back();
 
     Value result = returnValue_.value;
     returnValue_ = oldRet;

@@ -95,6 +95,7 @@ private:
     void compileBlock(const std::vector<std::shared_ptr<Stmt>>& stmts);
     void compileExpr(const std::shared_ptr<Expr>& expr);
     void compileStmt(const std::shared_ptr<Stmt>& stmt);
+    void optimizeChunk(Chunk& chunk);
 
     void initBuiltins();
 };

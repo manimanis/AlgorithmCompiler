@@ -1,0 +1,2 @@
+git tag v1.8.0 -m "Release v1.8.0 : Inférence TDO/TDNT."
+git push origin v1.8.0

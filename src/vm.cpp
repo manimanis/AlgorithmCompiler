@@ -614,6 +614,21 @@ void VM::executeBuiltin(uint32_t builtinId, uint32_t argCount, int line) {
     }
 }
 
+std::vector<StackFrame> VM::getCallStack() const {
+    std::vector<StackFrame> res;
+    res.reserve(frames_.size());
+    for (const auto& f : frames_) {
+        std::string name = (f.function ? (f.function->isProcedure ? "Procédure " : "Fonction ") + f.function->name : "Programme principal");
+        int line = -1;
+        if (f.chunk && !f.chunk->lines.empty()) {
+            size_t idx = (f.ip > 0 && f.ip <= f.chunk->lines.size()) ? f.ip - 1 : 0;
+            line = f.chunk->lines[idx];
+        }
+        res.push_back(StackFrame(name, line, -1));
+    }
+    return res;
+}
+
 void VM::run(const BytecodeProgram& prog) {
     stack_.clear();
     stack_.reserve(500000);
@@ -627,6 +642,7 @@ void VM::run(const BytecodeProgram& prog) {
     iterationCount_ = 0;
     instructionCount_ = 0;
     startTime_ = std::chrono::steady_clock::now();
+    memoryTracker_.reset();
 
     for (const auto& td : prog.typeDecls) {
         typeDefs_[normalize(td.name)] = td;
@@ -662,19 +678,26 @@ void VM::run(const BytecodeProgram& prog) {
 
     VMCallFrame* frame = &frames_.back();
 
-    while (true) {
-        instructionCount_++;
-        if ((instructionCount_ & 4095) == 0) {
-            checkTimeout(frame->chunk->lines.empty() ? -1 : frame->chunk->lines[frame->ip]);
+    auto finishRun = [&]() {
+        if (options_.leakCheck && memoryTracker_.hasLeaks()) {
+            addOutput(memoryTracker_.formatLeakReport());
         }
+    };
 
-        uint8_t instruction = frame->chunk->readByte(frame->ip);
-        OpCode op = static_cast<OpCode>(instruction);
-        int curLine = frame->chunk->lines[frame->ip - 1];
+    try {
+        while (true) {
+            instructionCount_++;
+            if ((instructionCount_ & 4095) == 0) {
+                checkTimeout(frame->chunk->lines.empty() ? -1 : frame->chunk->lines[frame->ip]);
+            }
 
-        switch (op) {
-            case OpCode::OP_NOP:
-                break;
+            uint8_t instruction = frame->chunk->readByte(frame->ip);
+            OpCode op = static_cast<OpCode>(instruction);
+            int curLine = frame->chunk->lines[frame->ip - 1];
+
+            switch (op) {
+                case OpCode::OP_NOP:
+                    break;
 
             case OpCode::OP_CONST: {
                 uint32_t constIdx = frame->chunk->readUint32(frame->ip);
@@ -941,7 +964,9 @@ void VM::run(const BytecodeProgram& prog) {
                     throw AlgoError("Cible d'allocation non valide", curLine);
                 }
                 Value initialVal = getDefaultValue(typeName, "");
-                *(refVal.refPtr) = Value::makePointer(std::make_shared<Value>(std::move(initialVal)));
+                auto ptrShared = std::make_shared<Value>(std::move(initialVal));
+                memoryTracker_.recordAlloc(ptrShared.get(), typeName, curLine);
+                *(refVal.refPtr) = Value::makePointer(ptrShared);
                 break;
             }
 
@@ -950,7 +975,8 @@ void VM::run(const BytecodeProgram& prog) {
                 if (!refVal.isRef() || !refVal.refPtr) {
                     throw AlgoError("Cible de libération non valide", curLine);
                 }
-                if (refVal.refPtr->type == ValueType::Pointer) {
+                if (refVal.refPtr->type == ValueType::Pointer && refVal.refPtr->ptrVal) {
+                    memoryTracker_.recordFree(refVal.refPtr->ptrVal.get());
                     refVal.refPtr->ptrVal.reset();
                 }
                 *(refVal.refPtr) = Value::makeNil();
@@ -1786,7 +1812,10 @@ void VM::run(const BytecodeProgram& prog) {
                 Value retVal = pop();
                 size_t base = frame->stackBase;
                 frames_.pop_back();
-                if (frames_.empty()) return;
+                if (frames_.empty()) {
+                    finishRun();
+                    return;
+                }
                 frame = &frames_.back();
                 stack_.resize(base);
                 push(std::move(retVal));
@@ -1796,7 +1825,10 @@ void VM::run(const BytecodeProgram& prog) {
             case OpCode::OP_RETURN_VOID: {
                 size_t base = frame->stackBase;
                 frames_.pop_back();
-                if (frames_.empty()) return;
+                if (frames_.empty()) {
+                    finishRun();
+                    return;
+                }
                 frame = &frames_.back();
                 stack_.resize(base);
                 push(Value());
@@ -1804,8 +1836,15 @@ void VM::run(const BytecodeProgram& prog) {
             }
 
             case OpCode::OP_HALT:
+                finishRun();
                 return;
+            }
         }
+    } catch (AlgoError& e) {
+        if (e.callStack.empty()) {
+            e.callStack = getCallStack();
+        }
+        throw;
     }
 }
 

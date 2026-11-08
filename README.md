@@ -2,7 +2,7 @@
 
 **AlgorithmCompiler** est un interpréteur, vérificateur sémantique statique et transpilateur haute performance pour le pseudo-code algorithmique standard utilisé dans l'enseignement secondaire et supérieur en Tunisie (programmes du Baccalauréat tunisien : Mathématiques, Sciences Expérimentales, Sciences de l'Informatique, Technique et Économie-Gestion).
 
-Le projet est développé en **C++20 moderne** et dispose d'une suite complète de **233 tests unitaires automatisés validés à 100%**, d'un **harnais de fuzzing automatisé** et d'un pipeline de **CI/CD multiplateforme** (Ubuntu, Windows, macOS).
+Le projet est développé en **C++20 moderne** et dispose d'une suite complète de **239 tests unitaires automatisés validés à 100%**, d'un **harnais de fuzzing automatisé**, d'un **Studio Web WebAssembly** et d'un pipeline de **CI/CD multiplateforme** (Ubuntu, Windows, macOS).
 
 > 📚 **Documentation Complète & Manuel de Référence :**
 > - [📖 Guide Complet de Référence (Markdown)](docs/GUIDE_REFERENCE.md)
@@ -528,9 +528,32 @@ Enregistrer le code Python directement dans un fichier :
 ./algo mon_programme.alg --to-python sortie.py
 ```
 
+### Générer un Organigramme / Algorigramme (`--flowchart`, `--flowchart-html`)
+Génère la représentation graphique et logique complète de votre algorithme (conditions, boucles `Pour`, `Tant Que`, `Répéter`, aiguillages `Selon`, sous-programmes) :
+```bash
+# Générer le code Mermaid pur (visualisable sur GitHub, Mermaid Live Editor, etc.) :
+algo.exe mon_programme.alg --flowchart
+algo.exe mon_programme.alg --flowchart diagramme.mmd
+
+# Générer une page HTML autonome interactive (avec zoom panoramique svg-pan-zoom et export SVG) :
+algo.exe mon_programme.alg --flowchart-html organigramme.html
+```
+
+### Détecter les Fuites de Mémoire (`--leak-check`)
+Analyse au runtime chaque appel à `Allouer(p)` et vérifie que chaque bloc a été correctement désalloué avec `Liberer(p)` avant la fin du programme :
+```bash
+algo.exe mon_programme.alg --leak-check
+```
+
+### Trace d'Exécution Pédagogique (Runtime Call Stack)
+En cas d'erreur à l'exécution (division par zéro, débordement d'indice, déréférencement d'un pointeur `NIL`), AlgorithmCompiler affiche un diagnostic complet comprenant le prévisualisateur de code avec curseur `^~~~` et la pile d'appels (*Call Stack*) de chaque procédure et fonction parente.
+
 ### Options de la ligne de commande
 - `-h, --help` : Affiche l'aide détaillée et les exemples d'utilisation.
 - `-v, --version` : Affiche le numéro de version du compilateur.
+- `-f, --flowchart, --mermaid [out]` : Génère l'organigramme (algorigramme) au format Mermaid.
+- `--flowchart-html [out.html]` : Génère une page HTML autonome interactive avec zoom & export SVG.
+- `--leak-check` : Active le détecteur de fuites de mémoire (Memory Leak Checker) pour les pointeurs.
 - `--check` : Effectue uniquement l'analyse syntaxique et la vérification sémantique statique sans exécuter le code.
 - `--vm` : Exécute l'algorithme via la Machine Virtuelle à Bytecode (mode activé par défaut, exécution linéaire ultra-rapide).
 - `--ast` : Force l'exécution via l'Interpréteur d'AST classique (Patron Visiteur sans RTTI).
@@ -546,9 +569,32 @@ Enregistrer le code Python directement dans un fichier :
 
 ---
 
+## 🌐 Studio Web & Compilation WebAssembly (Wasm)
+
+AlgorithmCompiler intègre une application Web complète (`web/index.html`) prête à l'emploi permettant de coder, exécuter, déboguer et visualiser les algorithmes directement dans le navigateur sans rien installer :
+
+- **Compilation WebAssembly** (via Emscripten SDK) :
+  ```bash
+  # Avec le Makefile :
+  make wasm
+
+  # Ou sous Windows :
+  build_wasm.bat
+
+  # Ou sous Linux / macOS :
+  ./build_wasm.sh
+  ```
+- **Lancer le Studio Web localement** :
+  ```bash
+  python -m http.server -d web 8080
+  # Ouvrir ensuite http://localhost:8080 dans votre navigateur !
+  ```
+
+---
+
 ## 🧪 Suite de Tests Automatisée, Fuzzing & CI/CD
 
-AlgorithmCompiler dispose d'une suite de **230 tests unitaires validés à 100%**, d'un **harnais de fuzzing automatisé** et d'un pipeline de **CI/CD GitHub Actions**.
+AlgorithmCompiler dispose d'une suite de **239 tests unitaires validés à 100%**, d'un **harnais de fuzzing automatisé** et d'un pipeline de **CI/CD GitHub Actions**.
 
 ### Lancer tous les tests unitaires en C++
 Sous Linux / macOS :
@@ -568,10 +614,10 @@ Résultats obtenus :
 ========================================================
                   RÉSULTATS DES TESTS                   
 ========================================================
- Total tests : 230
- Réussis     : 230
+ Total tests : 239
+ Réussis     : 239
  Échoués     : 0 (100% SUCCÈS)
- Durée       : ~1700 ms
+ Durée       : ~1800 ms
 ========================================================
 ```
 

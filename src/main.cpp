@@ -7,6 +7,7 @@
 #include "../include/vm.hpp"
 #include "../include/version.hpp"
 #include "../include/signature_extractor.hpp"
+#include "../include/flowchart_generator.hpp"
 #include <fstream>
 #include <iostream>
 #include <iomanip>
@@ -79,6 +80,9 @@ static void printHelp(const std::string& progPath) {
               << "                                  tables TDO/TDOL et TDNT respectifs (génère automatiquement\n"
               << "                                  le TDO/TDOL s'il n'existe pas dans le code source).\n"
               << "    --json                        Formate la sortie en JSON (utilisable avec --signatures).\n"
+              << "    -f, --flowchart, --mermaid [out] Génère l'organigramme (algorigramme) au format Mermaid.\n"
+              << "    --flowchart-html [out.html]   Génère une page HTML autonome interactive avec zoom & export.\n"
+              << "    --leak-check                  Active la détection des fuites de mémoire pour les pointeurs.\n"
               << "    --check                       Effectue uniquement l'analyse syntaxique et sémantique\n"
               << "                                  (vérification des types, portées, arités, etc.)\n"
               << "                                  sans exécuter l'algorithme.\n"
@@ -100,12 +104,10 @@ static void printHelp(const std::string& progPath) {
               << "                                  (utilisé par les fonctions Aléa / Hasard).\n\n"
               << "EXEMPLES :\n"
               << "    " << progName << " mon_programme.alg\n"
+              << "    " << progName << " mon_programme.alg --flowchart organigramme.mmd\n"
+              << "    " << progName << " mon_programme.alg --flowchart-html organigramme.html\n"
+              << "    " << progName << " mon_programme.alg --leak-check\n"
               << "    " << progName << " mon_programme.alg --build-exe mon_programme.exe\n"
-              << "    " << progName << " mon_programme.alg --compile-bc mon_programme.algb\n"
-              << "    " << progName << " mon_programme.algb\n"
-              << "    " << progName << " mon_programme.alg --vm\n"
-              << "    " << progName << " mon_programme.alg --dump-bytecode\n"
-              << "    " << progName << " mon_programme.alg --check\n"
               << "    " << progName << " mon_programme.alg --to-python\n";
 }
 
@@ -144,6 +146,9 @@ int main(int argc, char* argv[]) {
     bool showSignatures = false;
     std::string signaturesOutputPath;
     bool outputJson = false;
+    bool generateFlowchart = false;
+    bool generateFlowchartHtml = false;
+    std::string flowchartOutputPath;
 
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
@@ -160,6 +165,18 @@ int main(int argc, char* argv[]) {
             }
         } else if (arg == "--json") {
             outputJson = true;
+        } else if (arg == "-f" || arg == "--flowchart" || arg == "--mermaid") {
+            generateFlowchart = true;
+            if (i + 1 < argc && argv[i + 1][0] != '-') {
+                flowchartOutputPath = argv[++i];
+            }
+        } else if (arg == "--flowchart-html") {
+            generateFlowchartHtml = true;
+            if (i + 1 < argc && argv[i + 1][0] != '-') {
+                flowchartOutputPath = argv[++i];
+            }
+        } else if (arg == "--leak-check") {
+            options.leakCheck = true;
         } else if (arg == "-b" || arg == "--build-exe") {
             buildExe = true;
             if (i + 1 < argc && argv[i + 1][0] != '-') {
@@ -211,6 +228,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    std::string source;
     try {
         // Exécution directe si le fichier fourni est un fichier de bytecode binaire (.algb)
         bool isBytecodeFile = (filePath.size() >= 5 && filePath.substr(filePath.size() - 5) == ".algb");
@@ -260,7 +278,7 @@ int main(int argc, char* argv[]) {
             return 0;
         }
 
-        std::string source = readFile(filePath);
+        source = readFile(filePath);
 
         InterpreterOptions fileOpts = InterpreterOptions::fromSource(source);
         if (!hasCliMaxIter) options.maxIterations = fileOpts.maxIterations;
@@ -283,6 +301,18 @@ int main(int argc, char* argv[]) {
                 std::cout << "[OK] Signatures et TDO/TDNT exportés vers : " << signaturesOutputPath << std::endl;
             } else {
                 std::cout << outputText;
+            }
+            return 0;
+        }
+
+        if (generateFlowchart || generateFlowchartHtml) {
+            FlowchartGenerator generator(prog);
+            std::string fcOutput = generateFlowchartHtml ? generator.generateHtml() : generator.generateMermaid();
+            if (!flowchartOutputPath.empty()) {
+                writeFile(flowchartOutputPath, fcOutput);
+                std::cout << "[OK] Organigramme exporté vers : " << flowchartOutputPath << std::endl;
+            } else {
+                std::cout << fcOutput;
             }
             return 0;
         }
@@ -430,7 +460,11 @@ int main(int argc, char* argv[]) {
         }
         return 0;
     } catch (const AlgoError& e) {
-        std::cerr << e.what() << std::endl;
+        if (!source.empty() || !e.callStack.empty()) {
+            std::cerr << e.formatStackTrace(source) << std::endl;
+        } else {
+            std::cerr << e.what() << std::endl;
+        }
         return 1;
     } catch (const std::exception& e) {
         std::cerr << "Erreur: " << e.what() << std::endl;

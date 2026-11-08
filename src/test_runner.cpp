@@ -6,6 +6,7 @@
 #include "../include/semantic_analyzer.hpp"
 #include "../include/version.hpp"
 #include "../include/signature_extractor.hpp"
+#include "../include/flowchart_generator.hpp"
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -379,6 +380,271 @@ static void runSignatureExtractorUnitTests(int& passed, int& failed, int& totalU
     }
 }
 
+static void runNewFeaturesUnitTests(int& passed, int& failed, int& totalUnitTests) {
+    std::cout << "\n--- Tests unitaires : Nouvelles Fonctionnalités v1.8.0 ---\n";
+
+    // 1. Organigramme Mermaid
+    {
+        totalUnitTests++;
+        try {
+            std::string src =
+                "Fonction Doubler(x: entier): entier\n"
+                "Début\n"
+                "    Retourner x * 2\n"
+                "Fin\n"
+                "Algorithme TestFlowchart\n"
+                "Début\n"
+                "    Pour i de 1 à 5 Faire\n"
+                "        Si i mod 2 = 0 Alors\n"
+                "            Ecrire(Doubler(i))\n"
+                "        Sinon\n"
+                "            Ecrire(i)\n"
+                "        Fin Si\n"
+                "    Fin Pour\n"
+                "Fin\n";
+            Lexer lexer(src);
+            Parser parser(lexer.tokenize());
+            Program prog = parser.parse();
+
+            FlowchartGenerator gen(prog);
+            std::string mmd = gen.generateMermaid();
+            bool ok = true;
+            if (mmd.find("flowchart TD") == std::string::npos) ok = false;
+            if (mmd.find("subgraph sub_func_Doubler") == std::string::npos) ok = false;
+            if (mmd.find("subgraph main_algo") == std::string::npos) ok = false;
+            if (mmd.find("Pour i de 1 à 5") == std::string::npos) ok = false;
+            if (mmd.find("-->|Vrai|") == std::string::npos) ok = false;
+            if (mmd.find("-->|Faux|") == std::string::npos) ok = false;
+
+            if (ok) {
+                std::cout << " [PASS] unit/flowchart_mermaid_generation\n";
+                passed++;
+            } else {
+                std::cout << " [FAIL] unit/flowchart_mermaid_generation\n";
+                failed++;
+            }
+        } catch (const std::exception& e) {
+            std::cout << " [FAIL] unit/flowchart_mermaid_generation (" << e.what() << ")\n";
+            failed++;
+        }
+    }
+
+    // 2. Organigramme Page HTML
+    {
+        totalUnitTests++;
+        try {
+            std::string src =
+                "Algorithme TestHtml\n"
+                "Début\n"
+                "    Ecrire(\"Bonjour\")\n"
+                "Fin\n";
+            Lexer lexer(src);
+            Parser parser(lexer.tokenize());
+            Program prog = parser.parse();
+
+            FlowchartGenerator gen(prog);
+            std::string html = gen.generateHtml("Test Organigramme");
+            bool ok = true;
+            if (html.find("<!DOCTYPE html>") == std::string::npos) ok = false;
+            if (html.find("mermaid.min.js") == std::string::npos) ok = false;
+            if (html.find("svg-pan-zoom") == std::string::npos) ok = false;
+            if (html.find("Test Organigramme") == std::string::npos) ok = false;
+
+            if (ok) {
+                std::cout << " [PASS] unit/flowchart_html_generation\n";
+                passed++;
+            } else {
+                std::cout << " [FAIL] unit/flowchart_html_generation\n";
+                failed++;
+            }
+        } catch (const std::exception& e) {
+            std::cout << " [FAIL] unit/flowchart_html_generation (" << e.what() << ")\n";
+            failed++;
+        }
+    }
+
+    // 3. Détection de fuite de mémoire (Memory Leak Checker)
+    {
+        totalUnitTests++;
+        try {
+            std::string src =
+                "Algorithme TestLeak\n"
+                "Début\n"
+                "    Allouer(p)\n"
+                "    p^ ← 42\n"
+                "Fin\n"
+                "TDO\n"
+                "Objet : Type/Nature\n"
+                "p : ^entier\n";
+            Lexer lexer(src);
+            Parser parser(lexer.tokenize());
+            Program prog = parser.parse();
+
+            BytecodeCompiler compiler;
+            BytecodeProgram bcProg = compiler.compile(prog);
+
+            InterpreterOptions opts;
+            opts.leakCheck = true;
+            VM vm(opts);
+            vm.run(bcProg);
+
+            bool ok = vm.getMemoryTracker().hasLeaks() && (vm.getMemoryTracker().leakCount() == 1);
+            if (ok && vm.getMemoryTracker().getLeaks()[0].typeName != "entier") ok = false;
+
+            if (ok) {
+                std::cout << " [PASS] unit/memory_leak_checker_detection\n";
+                passed++;
+            } else {
+                std::cout << " [FAIL] unit/memory_leak_checker_detection\n";
+                failed++;
+            }
+        } catch (const std::exception& e) {
+            std::cout << " [FAIL] unit/memory_leak_checker_detection (" << e.what() << ")\n";
+            failed++;
+        }
+    }
+
+    // 4. Libération sans fuite mémoire
+    {
+        totalUnitTests++;
+        try {
+            std::string src =
+                "Algorithme TestClean\n"
+                "Début\n"
+                "    Allouer(p)\n"
+                "    p^ ← 100\n"
+                "    Liberer(p)\n"
+                "Fin\n"
+                "TDO\n"
+                "Objet : Type/Nature\n"
+                "p : ^entier\n";
+            Lexer lexer(src);
+            Parser parser(lexer.tokenize());
+            Program prog = parser.parse();
+
+            BytecodeCompiler compiler;
+            BytecodeProgram bcProg = compiler.compile(prog);
+
+            InterpreterOptions opts;
+            opts.leakCheck = true;
+            VM vm(opts);
+            vm.run(bcProg);
+
+            bool ok = !vm.getMemoryTracker().hasLeaks() && (vm.getMemoryTracker().leakCount() == 0);
+
+            if (ok) {
+                std::cout << " [PASS] unit/memory_leak_checker_clean_after_free\n";
+                passed++;
+            } else {
+                std::cout << " [FAIL] unit/memory_leak_checker_clean_after_free\n";
+                failed++;
+            }
+        } catch (const std::exception& e) {
+            std::cout << " [FAIL] unit/memory_leak_checker_clean_after_free (" << e.what() << ")\n";
+            failed++;
+        }
+    }
+
+    // 5. Élimination du code mort après Retourner
+    {
+        totalUnitTests++;
+        try {
+            std::string src =
+                "Fonction f(x: entier): entier\n"
+                "Début\n"
+                "    Retourner x + 1\n"
+                "    x ← x + 100\n"
+                "    Ecrire(\"Dead code\")\n"
+                "Fin\n"
+                "Algorithme TestDCE\n"
+                "Début\n"
+                "    res ← f(10)\n"
+                "Fin\n";
+            Lexer lexer(src);
+            Parser parser(lexer.tokenize());
+            Program prog = parser.parse();
+
+            BytecodeCompiler compiler;
+            BytecodeProgram bcProg = compiler.compile(prog);
+
+            const auto& chunk = bcProg.subroutines.at("f").chunk;
+            // Vérifier qu'il n'y a pas d'instruction OP_WRITE dans la fonction f
+            bool hasWrite = false;
+            for (uint8_t op : chunk.code) {
+                if (static_cast<OpCode>(op) == OpCode::OP_WRITE) {
+                    hasWrite = true;
+                    break;
+                }
+            }
+
+            if (!hasWrite) {
+                std::cout << " [PASS] unit/dead_code_elimination_after_return\n";
+                passed++;
+            } else {
+                std::cout << " [FAIL] unit/dead_code_elimination_after_return\n";
+                failed++;
+            }
+        } catch (const std::exception& e) {
+            std::cout << " [FAIL] unit/dead_code_elimination_after_return (" << e.what() << ")\n";
+            failed++;
+        }
+    }
+
+    // 6. Trace d'exécution pédagogique (Call Stack)
+    {
+        totalUnitTests++;
+        try {
+            std::string src =
+                "Fonction Diviser(x: entier): entier\n"
+                "Début\n"
+                "    Retourner 100 div x\n"
+                "Fin\n"
+                "Procédure Appeler(v: entier)\n"
+                "Début\n"
+                "    r ← Diviser(v)\n"
+                "Fin\n"
+                "Algorithme TestStack\n"
+                "Début\n"
+                "    Appeler(0)\n"
+                "Fin\n";
+            Lexer lexer(src);
+            Parser parser(lexer.tokenize());
+            Program prog = parser.parse();
+
+            BytecodeCompiler compiler;
+            BytecodeProgram bcProg = compiler.compile(prog);
+
+            VM vm;
+            bool caught = false;
+            try {
+                vm.run(bcProg);
+            } catch (const AlgoError& e) {
+                caught = true;
+                bool ok = e.callStack.size() >= 2;
+                std::string trace = e.formatStackTrace(src);
+                if (trace.find("Division entière par zéro") == std::string::npos) ok = false;
+                if (trace.find("Fonction Diviser") == std::string::npos) ok = false;
+                if (trace.find("Procédure Appeler") == std::string::npos) ok = false;
+
+                if (ok) {
+                    std::cout << " [PASS] unit/runtime_stack_trace_pedagogical\n";
+                    passed++;
+                } else {
+                    std::cout << " [FAIL] unit/runtime_stack_trace_pedagogical\n";
+                    failed++;
+                }
+            }
+            if (!caught) {
+                std::cout << " [FAIL] unit/runtime_stack_trace_pedagogical (no exception thrown)\n";
+                failed++;
+            }
+        } catch (const std::exception& e) {
+            std::cout << " [FAIL] unit/runtime_stack_trace_pedagogical (" << e.what() << ")\n";
+            failed++;
+        }
+    }
+}
+
 int main(int argc, char* argv[]) {
     initConsoleUtf8();
 
@@ -588,6 +854,7 @@ int main(int argc, char* argv[]) {
 
     int unitTestsCount = 0;
     runSignatureExtractorUnitTests(passed, failed, unitTestsCount);
+    runNewFeaturesUnitTests(passed, failed, unitTestsCount);
 
     auto tEnd = std::chrono::steady_clock::now();
     auto durationMs = std::chrono::duration_cast<std::chrono::milliseconds>(tEnd - tStart).count();

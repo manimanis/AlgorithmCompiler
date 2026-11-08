@@ -59,7 +59,7 @@ CXXFLAGS ?= -std=c++20 -O2 -Wall -Wextra -Iinclude
 LDFLAGS ?= $(STATIC_FLAGS) -s
 
 # Fichiers sources et objets
-SRCS_COMMON = src/lexer.cpp src/value.cpp src/parser.cpp src/interpreter.cpp src/bytecode.cpp src/bytecode_compiler.cpp src/vm.cpp src/semantic_analyzer.cpp src/signature_extractor.cpp
+SRCS_COMMON = src/lexer.cpp src/value.cpp src/parser.cpp src/interpreter.cpp src/bytecode.cpp src/bytecode_compiler.cpp src/vm.cpp src/semantic_analyzer.cpp src/signature_extractor.cpp src/flowchart_generator.cpp
 SRCS_MAIN   = src/python_transpiler.cpp src/main.cpp
 SRCS_TEST   = src/test_runner.cpp
 SRCS_FUZZ   = src/fuzz_runner.cpp
@@ -132,6 +132,15 @@ bench: $(TARGET)
 	./$(TARGET) benchmarks/03_tri_selection.alg --vm --bench
 	./$(TARGET) benchmarks/05_crible_premiers.alg --vm --bench
 
+wasm:
+	em++ -std=c++20 -O3 -Iinclude $(SRCS_COMMON) src/python_transpiler.cpp src/wasm_api.cpp -o web/algo.js \
+		-s WASM=1 \
+		-s "EXPORTED_FUNCTIONS=['_algo_run','_algo_check','_algo_to_python','_algo_flowchart','_algo_signatures','_algo_version','_malloc','_free']" \
+		-s "EXPORTED_RUNTIME_METHODS=['ccall','cwrap','UTF8ToString','stringToUTF8']" \
+		-s ALLOW_MEMORY_GROWTH=1 \
+		-s MODULARIZE=1 \
+		-s EXPORT_NAME="createAlgoModule"
+
 help:
 	@echo ==============================================================================
 	@echo  Options de compilation et cross-compilation pour AlgorithmCompiler
@@ -141,8 +150,9 @@ help:
 	@echo  make win64         : Cross-compile Windows 64-bit avec x86_64-w64-mingw32-g++
 	@echo  make win32         : Cross-compile Windows 32-bit avec i686-w64-mingw32-g++
 	@echo  make linux         : Compile pour Linux (binaire natif ELF)
-	@echo  make test          : Compile et execute la suite de 185 tests unitaires
+	@echo  make wasm          : Compile vers WebAssembly (Wasm via Emscripten)
+	@echo  make test          : Compile et execute la suite des tests unitaires
 	@echo  make clean         : Nettoie les fichiers objets (.o) et executables
 	@echo ==============================================================================
 
-.PHONY: all windows win64 win32 linux clean test help
+.PHONY: all windows win64 win32 linux wasm clean test help

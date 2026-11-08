@@ -18,7 +18,15 @@ static const std::unordered_set<std::string> TYPES = {
 };
 
 Lexer::Lexer(std::string source)
-    : source_(std::move(source)), pos_(0), line_(1), col_(1) {}
+    : source_(std::move(source)), pos_(0), line_(1), col_(1) {
+    // Ignorer le BOM UTF-8 (\xEF\xBB\xBF) au tout début du fichier source
+    if (source_.size() >= 3 &&
+        static_cast<unsigned char>(source_[0]) == 0xEF &&
+        static_cast<unsigned char>(source_[1]) == 0xBB &&
+        static_cast<unsigned char>(source_[2]) == 0xBF) {
+        pos_ = 3;
+    }
+}
 
 char Lexer::peek(size_t offset) const {
     if (pos_ + offset >= source_.size()) return '\0';

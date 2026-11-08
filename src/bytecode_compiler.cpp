@@ -285,9 +285,17 @@ void BytecodeCompiler::compileStmt(const std::shared_ptr<Stmt>& stmt) {
     stmt->accept(*this);
 }
 
+void BytecodeCompiler::optimizeChunk(Chunk& chunk) {
+    optimizePeephole(chunk);
+}
+
 void BytecodeCompiler::compileBlock(const std::vector<std::shared_ptr<Stmt>>& stmts) {
     for (const auto& stmt : stmts) {
         compileStmt(stmt);
+        // Élimination du code mort : arrêt de la compilation après une instruction de retour inconditionnel
+        if (stmt && stmt->kind == StmtKind::Return) {
+            break;
+        }
     }
 }
 
@@ -704,6 +712,18 @@ void BytecodeCompiler::visit(ReadStmt& node) {
 }
 
 void BytecodeCompiler::visit(IfStmt& node) {
+    // Élimination du code mort : condition booléenne constante
+    if (node.condition && node.condition->kind == ExprKind::Bool) {
+        auto* b = static_cast<BoolExpr*>(node.condition.get());
+        if (b->value) {
+            compileBlock(node.thenBlock);
+            return;
+        } else if (node.elseIfBlocks.empty()) {
+            compileBlock(node.elseBlock);
+            return;
+        }
+    }
+
     compileExpr(node.condition);
     size_t thenJump = emitJump(OpCode::OP_JUMP_IF_FALSE);
 
@@ -827,6 +847,14 @@ void BytecodeCompiler::visit(ForStmt& node) {
 }
 
 void BytecodeCompiler::visit(WhileStmt& node) {
+    // Élimination du code mort : boucle dont la condition est constamment Faux
+    if (node.condition && node.condition->kind == ExprKind::Bool) {
+        auto* b = static_cast<BoolExpr*>(node.condition.get());
+        if (!b->value) {
+            return;
+        }
+    }
+
     size_t loopStart = currentChunk_->code.size();
     compileExpr(node.condition);
     size_t exitJump = emitJump(OpCode::OP_JUMP_IF_FALSE);
