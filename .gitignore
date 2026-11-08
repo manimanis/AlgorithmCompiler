@@ -12,6 +12,8 @@ src/*.o
 # Exécutables compilés (Linux, macOS et Windows)
 algo
 algo.exe
+algo_stub
+fuzz_runner
 run_tests
 run_tests.exe
 *.exe

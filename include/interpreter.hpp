@@ -4,14 +4,37 @@
 #include "environment.hpp"
 #include <chrono>
 #include <fstream>
+#include <random>
 
 namespace algo {
+
+inline uint32_t generateRandomSeed() {
+    uint32_t s = 0;
+    try {
+        std::random_device rd;
+        s = rd();
+    } catch (...) {
+        s = 0;
+    }
+    auto now = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+    uint32_t timeVal = static_cast<uint32_t>(now ^ (now >> 32));
+    if (s == 0) {
+        s = timeVal;
+    } else {
+        s ^= timeVal;
+    }
+    return s != 0 ? s : 1;
+}
 
 struct InterpreterOptions {
     uint64_t maxIterations = 1000000;
     uint64_t timeoutMs = 50000;
     uint32_t seed = 0;
+    bool hasSeed = false;
     bool leakCheck = false;
+
+    InterpreterOptions() : seed(generateRandomSeed()), hasSeed(false) {}
+    explicit InterpreterOptions(uint32_t explicitSeed) : seed(explicitSeed), hasSeed(true) {}
 
     static InterpreterOptions fromSource(const std::string& source);
     static InterpreterOptions fromSource(const std::string& source, const InterpreterOptions& base);

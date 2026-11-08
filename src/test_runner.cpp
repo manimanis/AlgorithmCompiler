@@ -81,10 +81,9 @@ struct TestDirectives {
 };
 
 static TestDirectives parseDirectives(const std::string& source) {
-    InterpreterOptions base;
+    InterpreterOptions base(42);
     base.maxIterations = 5000000;
     base.timeoutMs = 10000;
-    base.seed = 42;
     InterpreterOptions opts = InterpreterOptions::fromSource(source, base);
     TestDirectives d;
     d.maxIterations = opts.maxIterations;
@@ -757,10 +756,9 @@ int main(int argc, char* argv[]) {
                 }
             }
 
-            InterpreterOptions opts;
+            InterpreterOptions opts(directives.seed);
             opts.maxIterations = directives.maxIterations;
             opts.timeoutMs = directives.timeoutMs;
-            opts.seed = directives.seed;
 
             std::string actualOutputRaw;
 

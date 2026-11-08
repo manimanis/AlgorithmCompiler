@@ -207,6 +207,7 @@ int main(int argc, char* argv[]) {
             hasCliTimeout = true;
         } else if (arg == "--seed" && i + 1 < argc) {
             options.seed = (uint32_t)std::stoul(argv[++i]);
+            options.hasSeed = true;
             hasCliSeed = true;
         } else if (arg == "--to-python" || arg == "--py") {
             toPython = true;
@@ -283,7 +284,10 @@ int main(int argc, char* argv[]) {
         InterpreterOptions fileOpts = InterpreterOptions::fromSource(source);
         if (!hasCliMaxIter) options.maxIterations = fileOpts.maxIterations;
         if (!hasCliTimeout) options.timeoutMs = fileOpts.timeoutMs;
-        if (!hasCliSeed) options.seed = fileOpts.seed;
+        if (!hasCliSeed && fileOpts.hasSeed) {
+            options.seed = fileOpts.seed;
+            options.hasSeed = true;
+        }
 
         Lexer lexer(source);
         auto tokens = lexer.tokenize();

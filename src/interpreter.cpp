@@ -59,6 +59,7 @@ InterpreterOptions InterpreterOptions::fromSource(const std::string& source, con
                 if (vStart != std::string::npos) {
                     try {
                         opts.seed = (uint32_t)std::stoul(valStr.substr(vStart));
+                        opts.hasSeed = true;
                     } catch (...) {}
                 }
             }

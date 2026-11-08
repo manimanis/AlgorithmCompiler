@@ -131,10 +131,9 @@ int main(int argc, char** argv) {
             BytecodeProgram bcProg = compiler.compile(prog);
 
             // 5. Exécution VM avec limites strictes
-            InterpreterOptions opts;
+            InterpreterOptions opts(42);
             opts.maxIterations = 500;
             opts.timeoutMs = 50;
-            opts.seed = 42;
 
             VM vm(opts);
             std::string out;
