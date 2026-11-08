@@ -5,9 +5,18 @@
 namespace algo {
 
 Parser::Parser(std::vector<Token> tokens, std::shared_ptr<Arena> arena)
-    : tokens_(std::move(tokens)), pos_(0), arena_(std::move(arena)) {
+    : pos_(0), arena_(std::move(arena)) {
     if (!arena_) {
         arena_ = makeNode<Arena>();
+    }
+    tokens_.reserve(tokens.size());
+    for (auto& tok : tokens) {
+        if (tok.type != TokenType::COMMENT) {
+            tokens_.push_back(std::move(tok));
+        }
+    }
+    if (tokens_.empty()) {
+        tokens_.emplace_back(TokenType::END_OF_FILE, "EOF", 1, 1);
     }
 }
 
