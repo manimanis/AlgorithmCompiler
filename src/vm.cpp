@@ -1017,6 +1017,23 @@ void VM::run(const BytecodeProgram& prog) {
                 break;
             }
 
+            case OpCode::OP_LOOP_STEP: {
+                if (stack_.size() >= 2) {
+                    Value& b = stack_.back();
+                    Value& a = stack_[stack_.size() - 2];
+                    if (a.type == ValueType::Int && b.type == ValueType::Int) {
+                        a.intVal += b.intVal;
+                        a.realVal = static_cast<double>(a.intVal);
+                        stack_.pop_back();
+                        break;
+                    }
+                }
+                Value b = pop();
+                Value a = pop();
+                push(a.stepValue(b.asInt()));
+                break;
+            }
+
             case OpCode::OP_SUB: {
                 if (stack_.size() >= 2) {
                     Value& b = stack_.back();

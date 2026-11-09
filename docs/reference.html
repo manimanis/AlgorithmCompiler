@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AlgorithmCompiler v1.8.0 — Manuel de Référence & Aide Complète</title>
+    <title>AlgorithmCompiler v1.8.1 — Manuel de Référence & Aide Complète</title>
     <style>
         :root {
             --primary: #2563eb;
@@ -355,7 +355,7 @@
         <div class="brand-title">
             <span>⚡ algo.exe</span>
         </div>
-        <div class="brand-subtitle">AlgorithmCompiler v1.8.0</div>
+        <div class="brand-subtitle">AlgorithmCompiler v1.8.1</div>
 
         <input type="text" id="searchInput" class="search-box" placeholder="Rechercher une instruction..." onkeyup="filterDocs()">
 
@@ -399,10 +399,10 @@
     <main id="content">
         <!-- Hero Header -->
         <section class="hero-banner">
-            <h1>AlgorithmCompiler <span style="font-size: 1.2rem; color: var(--accent);">v1.8.0</span></h1>
+            <h1>AlgorithmCompiler <span style="font-size: 1.2rem; color: var(--accent);">v1.8.1</span></h1>
             <p>Interpréteur C++20 moderne, Machine Virtuelle à Bytecode optimisée, Analyseur Sémantique avec diagnostics visuels, Générateur d'Organigrammes Mermaid/HTML, Détecteur de Fuites Mémoire, Studio WebAssembly et Transpilateur Python 3 pour le standard officiel du Baccalauréat tunisien.</p>
             <div class="hero-badges">
-                <span class="badge green">✓ 239 Tests Unitaires (100% Succès)</span>
+                <span class="badge green">✓ 246 Tests Unitaires (100% Succès)</span>
                 <span class="badge blue">⚡ VM Bytecode & DCE Optimisé</span>
                 <span class="badge orange">🎯 Standard Baccalauréat Tunisie</span>
                 <span class="badge">🌐 Studio Web & Wasm</span>
@@ -446,7 +446,12 @@ algo.exe [OPTIONS]</code><button class="copy-btn" onclick="copyCode(this)">Copie
                     <tr>
                         <td><code>-v, --version</code></td>
                         <td>—</td>
-                        <td>Affiche la version (v1.8.0), le compilateur hôte, la plateforme et le standard C++20.</td>
+                        <td>Affiche la version (v1.8.1), le compilateur hôte, la plateforme et le standard C++20.</td>
+                    </tr>
+                    <tr>
+                        <td><code>-e, --eval</code></td>
+                        <td><code>"&lt;code&gt;"</code></td>
+                        <td>Exécute directement une chaîne de code algorithmique en ligne sans nécessiter de fichier (supporte le multiligne).</td>
                     </tr>
                     <tr>
                         <td><code>-f, --flowchart, --mermaid</code></td>
@@ -751,13 +756,24 @@ Fin Selon</code><button class="copy-btn" onclick="copyCode(this)">Copier</button
             <div class="instruction-item" data-category="control">
                 <h3 id="inst-loops">6.5 Boucles Récurrentes (`Pour`, `Tant Que`, `Répéter`)</h3>
                 
-                <p><strong>1. Boucle Pour (croissante, décroissante, avec pas) :</strong></p>
-                <pre><code>Pour i de 0 à n - 1 Faire
+                <p><strong>1. Boucle Pour (scalaires : entier, caractère ou booléen, avec pas optionnel) :</strong></p>
+                <pre><code>// Scalaire entier (croissant par défaut ou décroissant avec pas)
+Pour i de 0 à n - 1 Faire
     somme ← somme + t[i]
 Fin Pour
 
 Pour k de 10 à 0 Pas -2 Faire
     Ecrire("k =", k)
+Fin Pour
+
+// Scalaire caractère (parcours alphabétique)
+Pour c de "A" à "Z" Faire
+    Ecrire(c)
+Fin Pour
+
+// Scalaire booléen (parcours de vérité)
+Pour b de Faux à Vrai Faire
+    Ecrire(non b)
 Fin Pour</code><button class="copy-btn" onclick="copyCode(this)">Copier</button></pre>
 
                 <p><strong>2. Boucle Tant Que (précondition) :</strong></p>
@@ -803,7 +819,7 @@ Fin</code><button class="copy-btn" onclick="copyCode(this)">Copier</button></pre
                 <h3 id="inst-files">6.7 Manipulation de Fichiers (`Ouvrir`, `Lire_Ligne`, `Aller_A`, `Fermer`)</h3>
                 <pre><code>// 1. Écriture dans un fichier texte ("w" = écriture, "a" = ajout, "r" = lecture)
 Ouvrir(f, "resultats.txt", "w")
-Ecrire(f, "Algorithme v1.8.0")
+Ecrire(f, "Algorithme v1.8.1")
 Fermer(f)
 
 // 2. Lecture ligne à ligne jusqu'à la fin de fichier

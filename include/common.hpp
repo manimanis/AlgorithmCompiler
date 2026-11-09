@@ -8,6 +8,7 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <windows.h>
+#include <shellapi.h>
 #endif
 
 #include <string>
@@ -318,6 +319,32 @@ inline void initConsoleUtf8() {
     SetConsoleOutputCP(CP_UTF8);
     SetConsoleCP(CP_UTF8);
 #endif
+}
+
+inline std::vector<std::string> getCommandLineArgs(int argc, char* argv[]) {
+    std::vector<std::string> args;
+#ifdef _WIN32
+    int wargc = 0;
+    LPWSTR* wargv = CommandLineToArgvW(GetCommandLineW(), &wargc);
+    if (wargv) {
+        for (int i = 0; i < wargc; ++i) {
+            int size_needed = WideCharToMultiByte(CP_UTF8, 0, wargv[i], -1, NULL, 0, NULL, NULL);
+            if (size_needed > 1) {
+                std::string str(size_needed - 1, 0);
+                WideCharToMultiByte(CP_UTF8, 0, wargv[i], -1, &str[0], size_needed, NULL, NULL);
+                args.push_back(str);
+            } else {
+                args.push_back("");
+            }
+        }
+        LocalFree(wargv);
+        return args;
+    }
+#endif
+    for (int i = 0; i < argc; ++i) {
+        args.push_back(argv[i]);
+    }
+    return args;
 }
 
 } // namespace algo

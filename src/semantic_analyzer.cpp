@@ -935,27 +935,60 @@ void SemanticAnalyzer::checkStmt(const std::shared_ptr<Stmt>& stmt) {
     }
 
     if (auto fors = std::dynamic_pointer_cast<ForStmt>(stmt)) {
+        std::string startType = checkExpr(fors->start);
+        std::string endType = checkExpr(fors->end);
+
         const Symbol* sym = findSymbol(fors->varName);
         if (!sym) {
-            // Implicit integer loop counter (standard convention in Tunisian algorithms)
+            // Inférence automatique du type scalaire pour le compteur de boucle
+            std::string inferredType = "entier";
+            if (isBooleanType(startType)) {
+                inferredType = "booleen";
+            } else if (isCharType(startType)) {
+                inferredType = "caractere";
+            }
             TypeSpec ts;
-            declareSymbol(fors->varName, "entier", ts, SymbolKind::Variable, fors->line);
-        } else if (!isNumericType(sym->typeName)) {
-            reportError(fors->line, -1, fors->varName,
-                        "La variable de boucle '" + fors->varName + "' doit être un nombre de type numérique (obtenu '" + sym->typeName + "').");
+            declareSymbol(fors->varName, inferredType, ts, SymbolKind::Variable, fors->line);
+            sym = findSymbol(fors->varName);
+        } else {
+            std::string vt = normalize(sym->typeName);
+            if (!isScalarType(vt) || vt == "reel") {
+                reportError(fors->line, -1, fors->varName,
+                            "La variable de boucle '" + fors->varName + "' doit être un scalaire (entier, caractère ou booléen, obtenu '" + sym->typeName + "').");
+            }
         }
         assignedVars_.insert(normalize(fors->varName));
 
-        std::string startType = checkExpr(fors->start);
-        std::string endType = checkExpr(fors->end);
-        if (!isNumericType(startType) || !isNumericType(endType)) {
-            reportError(fors->line, -1, "Pour",
-                        "Les bornes de la boucle 'Pour' doivent être des nombres (types numériques attendus, obtenu '" +
-                        startType + "' à '" + endType + "').");
+        std::string vType = sym ? normalize(sym->typeName) : "entier";
+        if (vType == "entier") {
+            if (!isNumericType(startType) || !isNumericType(endType) || startType == "reel" || endType == "reel") {
+                reportError(fors->line, -1, "Pour",
+                            "Les bornes de la boucle 'Pour' doivent être des nombres (types numériques attendus, obtenu '" +
+                            startType + "' à '" + endType + "').");
+            }
+        } else if (vType == "caractere" || vType == "caractère" || vType == "chaine") {
+            if (!isCharType(startType) || !isCharType(endType)) {
+                reportError(fors->line, -1, "Pour",
+                            "Les bornes de la boucle 'Pour' doivent être des caractères (obtenu '" +
+                            startType + "' à '" + endType + "').");
+            }
+        } else if (vType == "booleen" || vType == "booléen") {
+            if (!isBooleanType(startType) || !isBooleanType(endType)) {
+                reportError(fors->line, -1, "Pour",
+                            "Les bornes de la boucle 'Pour' doivent être des booléens (obtenu '" +
+                            startType + "' à '" + endType + "').");
+            }
+        } else {
+            if (!areTypesCompatible(vType, startType) || !areTypesCompatible(vType, endType)) {
+                reportError(fors->line, -1, "Pour",
+                            "Les bornes de la boucle 'Pour' doivent être de type compatible avec '" + vType +
+                            "' (obtenu '" + startType + "' à '" + endType + "').");
+            }
         }
+
         if (fors->step) {
             std::string stepType = checkExpr(fors->step);
-            if (!isNumericType(stepType)) {
+            if (!isNumericType(stepType) || stepType == "reel") {
                 reportError(fors->line, -1, "Pour",
                             "Le pas de la boucle 'Pour' doit être parmi les nombres (type numérique attendu, obtenu '" + stepType + "').");
             }
@@ -1484,6 +1517,27 @@ bool SemanticAnalyzer::isStringType(const std::string& type) {
         t = normalize(it->second.typeSpec.name);
     }
     return t == "chaine" || t == "caractere" || t == "inconnu";
+}
+
+bool SemanticAnalyzer::isScalarType(const std::string& type) {
+    std::string t = normalize(type);
+    auto it = typeMap_.find(t);
+    if (it != typeMap_.end()) {
+        if (it->second.typeSpec.kind == TypeKind::Subrange || it->second.typeSpec.kind == TypeKind::Enum) return true;
+        if (it->second.typeSpec.kind == TypeKind::Simple) {
+            t = normalize(it->second.typeSpec.name);
+        }
+    }
+    return t == "entier" || t == "caractere" || t == "caractère" || t == "chaine" || t == "booleen" || t == "booléen" || t == "inconnu";
+}
+
+bool SemanticAnalyzer::isCharType(const std::string& type) {
+    std::string t = normalize(type);
+    auto it = typeMap_.find(t);
+    if (it != typeMap_.end() && it->second.typeSpec.kind == TypeKind::Simple) {
+        t = normalize(it->second.typeSpec.name);
+    }
+    return t == "caractere" || t == "caractère" || t == "chaine" || t == "inconnu";
 }
 
 bool SemanticAnalyzer::isLValue(const std::shared_ptr<Expr>& expr) {

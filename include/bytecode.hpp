@@ -52,6 +52,7 @@ enum class OpCode : uint8_t {
     OP_DIV_INT,
     OP_MOD,
     OP_NEG,
+    OP_LOOP_STEP,
 
     // Logical
     OP_NOT,

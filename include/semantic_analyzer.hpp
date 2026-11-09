@@ -92,6 +92,8 @@ private:
     bool isNumericType(const std::string& type);
     bool isBooleanType(const std::string& type);
     bool isStringType(const std::string& type);
+    bool isScalarType(const std::string& type);
+    bool isCharType(const std::string& type);
     bool isLValue(const std::shared_ptr<Expr>& expr);
 };
 

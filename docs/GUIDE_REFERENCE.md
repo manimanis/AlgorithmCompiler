@@ -1,6 +1,6 @@
 # 📖 Manuel de Référence Complet & Guide d'Utilisation
 
-**AlgorithmCompiler v1.8.0**  
+**AlgorithmCompiler v1.8.1**  
 *Compilateur C++20, Interpréteur, Machine Virtuelle à Bytecode, Sérialiseur Binaire, Générateur d'Exécutables Autonomes (.exe), Extracteur de Signatures & Tables TDO/TDNT, Générateur d'Organigrammes (Mermaid/HTML), Détecteur de Fuites Mémoire, Module WebAssembly et Transpilateur Python pour le Pseudo-code Algorithmique du Baccalauréat Tunisien.*
 
 ---
@@ -78,7 +78,7 @@ Développé en **C++20 moderne**, il réunit :
 - Une **trace d'exécution enrichie** (Call Stack Trace) guidant les élèves pas à pas lors d'exceptions runtime.
 - Un **Studio Web WebAssembly** permettant d'exécuter et de visualiser les algorithmes directement dans le navigateur sans installation.
 - Un **transpilateur Python 3** produisant un code propre, idiomatique et sans dépendances superflues.
-- Une suite complète de **239 tests unitaires validés à 100%** couvrant l'ensemble du programme officiel et les sujets récents du Baccalauréat.
+- Une suite complète de **246 tests unitaires validés à 100%** couvrant l'ensemble du programme officiel et les sujets récents du Baccalauréat.
 
 ---
 
@@ -88,6 +88,7 @@ Développé en **C++20 moderne**, il réunit :
 
 ```bash
 algo.exe <fichier.alg> [OPTIONS]
+algo.exe -e "code algorithmique" [OPTIONS]
 algo.exe [OPTIONS]
 ```
 
@@ -97,6 +98,7 @@ algo.exe [OPTIONS]
 | :--- | :--- |
 | `-h`, `--help` | Affiche l'aide détaillée de la ligne de commande et quitte. |
 | `-v`, `--version` | Affiche les informations de version détaillée (SemVer, C++20, OS, GCC/Clang). |
+| `-e`, `--eval <code>` | Exécute directement du pseudo-code en ligne sans passer par un fichier (supporte le multiligne). |
 | `-f`, `--flowchart`, `--mermaid [out]` | Génère l'organigramme (algorigramme) au format Mermaid pur. |
 | `--flowchart-html [out.html]` | Génère une page HTML autonome interactive avec zoom panoramique (`svg-pan-zoom`) et export SVG. |
 | `--leak-check` | Active le détecteur de fuites de mémoire (Memory Leak Checker) pour les pointeurs dynamiques. |
@@ -129,7 +131,16 @@ algo.exe [OPTIONS]
 algo.exe programme.alg
 algo.exe programme.algb
 
-# 2. Extraire les signatures et générer les tables TDO / TDNT
+# 2. Exécution directe en ligne (inline evaluation -e / --eval)
+algo.exe -e '
+Algorithme Test
+Début
+  Pour c de "A" à "E" Faire
+    Ecrire(c)
+  Fin Pour
+Fin'
+
+# 3. Extraire les signatures et générer les tables TDO / TDNT
 algo.exe programme.alg --signatures
 algo.exe programme.alg -s
 algo.exe programme.alg -s --json
@@ -505,20 +516,31 @@ Fin Selon
 
 ### 6.5 Boucle Pour (`Pour ... de ... à`)
 
-Boucle itérative avec compteur. Supporte :
+Boucle itérative acceptant un **scalaire** : `entier`, `caractère` ou `booléen`. Supporte :
 - L'incrémentation automatique par défaut (`Pas 1`).
 - La spécification explicite du pas (`Pas p`).
 - Les pas positifs ou négatifs (décrémentation).
+- Le parcours d'intervalles de caractères (ex: `"A"` à `"Z"`) ou booléens (`Faux` à `Vrai`).
 
 ```algorithme
-// Boucle croissante par défaut
+// 1. Boucle entière croissante par défaut
 Pour i de 0 à 9 Faire
     Ecrire(i)
 Fin Pour
 
-// Boucle avec pas explicite
+// 2. Boucle entière avec pas négatif explicite
 Pour k de 10 à 0 Pas -2 Faire
     Ecrire("k =", k)
+Fin Pour
+
+// 3. Boucle sur les caractères
+Pour c de "A" à "Z" Faire
+    Ecrire(c)
+Fin Pour
+
+// 4. Boucle sur les booléens
+Pour b de Faux à Vrai Faire
+    Ecrire(non b)
 Fin Pour
 ```
 
@@ -1115,4 +1137,4 @@ Les commentaires sont filtrés de manière transparente dès l'entrée dans l'an
 
 ---
 
-*Document mis à jour pour AlgorithmCompiler v1.8.0 — Standard Algorithmique du Baccalauréat Tunisien.*
+*Document mis à jour pour AlgorithmCompiler v1.8.1 — Standard Algorithmique du Baccalauréat Tunisien.*

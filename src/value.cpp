@@ -112,6 +112,9 @@ bool Value::lessThan(const Value& other) const {
     if (type == ValueType::String && other.type == ValueType::String) {
         return strVal < other.strVal;
     }
+    if (type == ValueType::Bool && other.type == ValueType::Bool) {
+        return !boolVal && other.boolVal;
+    }
     return false;
 }
 
@@ -126,11 +129,34 @@ bool Value::greaterThan(const Value& other) const {
     if (type == ValueType::String && other.type == ValueType::String) {
         return strVal > other.strVal;
     }
+    if (type == ValueType::Bool && other.type == ValueType::Bool) {
+        return boolVal && !other.boolVal;
+    }
     return false;
 }
 
 bool Value::greaterOrEqual(const Value& other) const {
     return greaterThan(other) || equals(other);
+}
+
+Value Value::stepValue(int64_t step) const {
+    if (isNumber()) {
+        if (type == ValueType::Real) return Value(realVal + static_cast<double>(step));
+        return Value(intVal + step);
+    }
+    if (type == ValueType::String) {
+        if (strVal.empty()) return Value("");
+        unsigned char c = static_cast<unsigned char>(strVal[0]);
+        int nextCode = static_cast<int>(c) + static_cast<int>(step);
+        if (nextCode < 0) nextCode = 0;
+        if (nextCode > 255) nextCode = 255;
+        return Value(std::string(1, static_cast<char>(nextCode)));
+    }
+    if (type == ValueType::Bool) {
+        int64_t v = (boolVal ? 1 : 0) + step;
+        return Value(v > 0);
+    }
+    return *this;
 }
 
 bool Value::contains(const Value& elem) const {

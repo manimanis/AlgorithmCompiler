@@ -707,22 +707,54 @@ void Interpreter::visit(ForStmt& fors) {
     Value endVal = evaluateExpression(fors.end, currentEnv_);
     Value stepVal = fors.step ? evaluateExpression(fors.step, currentEnv_) : Value((int64_t)1);
 
-    if (!startVal.isNumber() || !endVal.isNumber() || !stepVal.isNumber()) {
-        throw AlgoError("Les bornes de la boucle Pour doivent être des nombres", fors.line);
+    if (!stepVal.isNumber()) {
+        throw AlgoError("Le pas de la boucle Pour doit être un nombre", fors.line);
     }
     int64_t step = stepVal.asInt();
     if (step == 0) {
         throw AlgoError("Le pas de la boucle Pour ne peut pas être nul", fors.line);
     }
 
-    int64_t start = startVal.asInt();
-    int64_t end = endVal.asInt();
+    enum class ScalarKind { Int, Char, Bool };
+    ScalarKind kind = ScalarKind::Int;
+
+    if (startVal.isNumber() && endVal.isNumber()) {
+        kind = ScalarKind::Int;
+    } else if (startVal.isString() && endVal.isString()) {
+        if (startVal.strVal.size() != 1 || endVal.strVal.size() != 1) {
+            throw AlgoError("Les bornes d'une boucle Pour sur des caractères doivent être des caractères de longueur 1", fors.line);
+        }
+        kind = ScalarKind::Char;
+    } else if (startVal.isBool() && endVal.isBool()) {
+        kind = ScalarKind::Bool;
+    } else {
+        throw AlgoError("Les bornes de la boucle Pour doivent être des nombres ou des scalaires compatibles (entier, caractère ou booléen)", fors.line);
+    }
+
+    int64_t start = 0;
+    int64_t end = 0;
+    if (kind == ScalarKind::Int) {
+        start = startVal.asInt();
+        end = endVal.asInt();
+    } else if (kind == ScalarKind::Char) {
+        start = static_cast<unsigned char>(startVal.strVal[0]);
+        end = static_cast<unsigned char>(endVal.strVal[0]);
+    } else {
+        start = startVal.asBool() ? 1 : 0;
+        end = endVal.asBool() ? 1 : 0;
+    }
+
+    auto makeValue = [&](int64_t code) -> Value {
+        if (kind == ScalarKind::Int) return Value(code);
+        if (kind == ScalarKind::Char) return Value(std::string(1, static_cast<char>(code)));
+        return Value(code != 0);
+    };
 
     if (step > 0) {
         for (int64_t i = start; i <= end; i += step) {
             checkIterationLimit(fors.line);
             checkTimeout(fors.line);
-            currentEnv_->set(fors.varName, Value(i), fors.line);
+            currentEnv_->set(fors.varName, makeValue(i), fors.line);
             executeBlock(fors.body, currentEnv_);
             if (returnValue_.set) return;
         }
@@ -730,7 +762,7 @@ void Interpreter::visit(ForStmt& fors) {
         for (int64_t i = start; i >= end; i += step) {
             checkIterationLimit(fors.line);
             checkTimeout(fors.line);
-            currentEnv_->set(fors.varName, Value(i), fors.line);
+            currentEnv_->set(fors.varName, makeValue(i), fors.line);
             executeBlock(fors.body, currentEnv_);
             if (returnValue_.set) return;
         }

@@ -7,6 +7,7 @@
 #include "../include/version.hpp"
 #include "../include/signature_extractor.hpp"
 #include "../include/flowchart_generator.hpp"
+#include "../include/python_transpiler.hpp"
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -380,7 +381,7 @@ static void runSignatureExtractorUnitTests(int& passed, int& failed, int& totalU
 }
 
 static void runNewFeaturesUnitTests(int& passed, int& failed, int& totalUnitTests) {
-    std::cout << "\n--- Tests unitaires : Nouvelles Fonctionnalités v1.8.0 ---\n";
+    std::cout << "\n--- Tests unitaires : Nouvelles Fonctionnalités v" << getVersionString() << " ---\n";
 
     // 1. Organigramme Mermaid
     {
@@ -639,6 +640,160 @@ static void runNewFeaturesUnitTests(int& passed, int& failed, int& totalUnitTest
             }
         } catch (const std::exception& e) {
             std::cout << " [FAIL] unit/runtime_stack_trace_pedagogical (" << e.what() << ")\n";
+            failed++;
+        }
+    }
+
+    std::cout << "\n--- Tests unitaires : Boucle Pour Scalaire (Entier, Caractère, Booléen) ---\n";
+
+    // 1. Boucle Pour avec variable caractère
+    {
+        totalUnitTests++;
+        try {
+            std::string src =
+                "Algorithme TestPourCarac\n"
+                "Début\n"
+                "    Pour c de \"A\" à \"C\" Faire\n"
+                "        Ecrire(c)\n"
+                "    Fin Pour\n"
+                "Fin\n";
+            Lexer lexer(src);
+            Parser parser(lexer.tokenize());
+            Program prog = parser.parse();
+
+            BytecodeCompiler compiler;
+            BytecodeProgram bcProg = compiler.compile(prog);
+
+            std::string out;
+            VM vm;
+            vm.setOutputCallback([&out](const std::string& s) { out += s; });
+            vm.run(bcProg);
+
+            bool ok = (out.find("A") != std::string::npos &&
+                       out.find("B") != std::string::npos &&
+                       out.find("C") != std::string::npos);
+
+            if (ok) {
+                std::cout << " [PASS] unit/for_loop_character_vm\n";
+                passed++;
+            } else {
+                std::cout << " [FAIL] unit/for_loop_character_vm\n";
+                failed++;
+            }
+        } catch (const std::exception& e) {
+            std::cout << " [FAIL] unit/for_loop_character_vm (" << e.what() << ")\n";
+            failed++;
+        }
+    }
+
+    // 2. Boucle Pour avec variable booléenne
+    {
+        totalUnitTests++;
+        try {
+            std::string src =
+                "Algorithme TestPourBool\n"
+                "Début\n"
+                "    Pour b de Faux à Vrai Faire\n"
+                "        Ecrire(non b)\n"
+                "    Fin Pour\n"
+                "Fin\n";
+            Lexer lexer(src);
+            Parser parser(lexer.tokenize());
+            Program prog = parser.parse();
+
+            BytecodeCompiler compiler;
+            BytecodeProgram bcProg = compiler.compile(prog);
+
+            std::string out;
+            VM vm;
+            vm.setOutputCallback([&out](const std::string& s) { out += s; });
+            vm.run(bcProg);
+
+            bool ok = (out.find("Vrai") != std::string::npos &&
+                       out.find("Faux") != std::string::npos);
+
+            if (ok) {
+                std::cout << " [PASS] unit/for_loop_boolean_vm\n";
+                passed++;
+            } else {
+                std::cout << " [FAIL] unit/for_loop_boolean_vm\n";
+                failed++;
+            }
+        } catch (const std::exception& e) {
+            std::cout << " [FAIL] unit/for_loop_boolean_vm (" << e.what() << ")\n";
+            failed++;
+        }
+    }
+
+    // 3. Transpilation Python d'une boucle caractère et booléenne
+    {
+        totalUnitTests++;
+        try {
+            std::string src =
+                "Algorithme TestPy\n"
+                "Début\n"
+                "    Pour c de \"A\" à \"Z\" Faire Ecrire(c) Fin Pour\n"
+                "    Pour b de Faux à Vrai Faire Ecrire(non b) Fin Pour\n"
+                "Fin\n";
+            Lexer lexer(src);
+            Parser parser(lexer.tokenize());
+            Program prog = parser.parse();
+
+            PythonTranspiler transpiler(prog);
+            std::string py = transpiler.transpile();
+
+            bool ok = true;
+            if (py.find("chr(_c)") == std::string::npos) ok = false;
+            if (py.find("ord(\"A\")") == std::string::npos) ok = false;
+            if (py.find("[False, True]") == std::string::npos && py.find("bool(_b)") == std::string::npos) ok = false;
+
+            if (ok) {
+                std::cout << " [PASS] unit/for_loop_scalar_python_transpiler\n";
+                passed++;
+            } else {
+                std::cout << " [FAIL] unit/for_loop_scalar_python_transpiler\n";
+                failed++;
+            }
+        } catch (const std::exception& e) {
+            std::cout << " [FAIL] unit/for_loop_scalar_python_transpiler (" << e.what() << ")\n";
+            failed++;
+        }
+    }
+
+    // 4. Validation sémantique : rejet d'un type non scalaire (réel) et rejet d'incompatibilité
+    {
+        totalUnitTests++;
+        try {
+            std::string srcReel =
+                "Algorithme TestReel\n"
+                "Début\n"
+                "    Pour x de 1.5 à 5.5 Faire\n"
+                "        Ecrire(x)\n"
+                "    Fin Pour\n"
+                "Fin\n"
+                "TDO\n"
+                "x : réel\n";
+            Lexer lexer(srcReel);
+            Parser parser(lexer.tokenize());
+            Program prog = parser.parse();
+
+            SemanticAnalyzer analyzer(srcReel);
+            bool caughtError = false;
+            try {
+                analyzer.analyze(prog);
+            } catch (const AlgoError&) {
+                caughtError = true;
+            }
+
+            if (caughtError) {
+                std::cout << " [PASS] unit/for_loop_scalar_semantic_validation\n";
+                passed++;
+            } else {
+                std::cout << " [FAIL] unit/for_loop_scalar_semantic_validation (aucune erreur levée)\n";
+                failed++;
+            }
+        } catch (const std::exception& e) {
+            std::cout << " [FAIL] unit/for_loop_scalar_semantic_validation (" << e.what() << ")\n";
             failed++;
         }
     }

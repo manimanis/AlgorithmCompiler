@@ -990,40 +990,124 @@ void PythonTranspiler::transpileStmt(const std::shared_ptr<Stmt>& stmt, std::ost
     }
     if (auto fors = std::dynamic_pointer_cast<ForStmt>(stmt)) {
         std::string var = pySafeName(fors->varName);
-        std::string start = transpileExpr(fors->start, 0);
-        if (fors->step) {
-            int64_t stepVal = 0;
-            bool isConstStep = false;
-            if (auto num = std::dynamic_pointer_cast<NumberExpr>(fors->step)) {
-                stepVal = num->value;
-                isConstStep = true;
-            } else if (auto un = std::dynamic_pointer_cast<UnaryExpr>(fors->step)) {
-                if (un->op == "-" || un->op == "+") {
-                    if (auto num = std::dynamic_pointer_cast<NumberExpr>(un->operand)) {
-                        stepVal = (un->op == "-") ? -num->value : num->value;
-                        isConstStep = true;
-                    }
-                }
+        std::string varNorm = normalize(fors->varName);
+        std::string varType = "";
+        auto itLoc = currentLocalTypes_.find(varNorm);
+        if (itLoc != currentLocalTypes_.end()) varType = normalize(resolveBaseType(itLoc->second));
+        else {
+            auto it = varTypeMap_.find(varNorm);
+            if (it != varTypeMap_.end()) varType = normalize(resolveBaseType(it->second));
+        }
+
+        std::string startType = normalize(getExprType(fors->start));
+        bool isCharLoop = (varType == "caractere" || varType == "caractère");
+        if (!isCharLoop) {
+            if (auto s = std::dynamic_pointer_cast<StringExpr>(fors->start)) {
+                if (s->value.size() == 1) isCharLoop = true;
             }
+        }
+
+        bool isBoolLoop = (varType == "booleen" || varType == "booléen" || startType == "booleen");
+        if (!isBoolLoop) {
+            if (std::dynamic_pointer_cast<BoolExpr>(fors->start)) {
+                isBoolLoop = true;
+            }
+        }
+
+        if (isCharLoop) {
+            std::string start = transpileExpr(fors->start, 0);
+            std::string end = transpileExpr(fors->end, 0);
+            std::string startOrd = "ord(" + start + ")";
+            std::string endOrd = "ord(" + end + ")";
+
+            int64_t stepVal = 1;
+            bool isConstStep = true;
+            if (fors->step) {
+                if (auto num = std::dynamic_pointer_cast<NumberExpr>(fors->step)) {
+                    stepVal = num->value;
+                } else if (auto un = std::dynamic_pointer_cast<UnaryExpr>(fors->step)) {
+                    if (un->op == "-" || un->op == "+") {
+                        if (auto num = std::dynamic_pointer_cast<NumberExpr>(un->operand)) {
+                            stepVal = (un->op == "-") ? -num->value : num->value;
+                        } else isConstStep = false;
+                    } else isConstStep = false;
+                } else isConstStep = false;
+            }
+
             if (isConstStep) {
                 if (stepVal > 0) {
                     if (stepVal == 1) {
-                        ss << indent() << "for " << var << " in range(" << start << ", " << formatRangeEnd(fors->end, 1) << "):\n";
+                        ss << indent() << "for " << var << " in (chr(_c) for _c in range(" << startOrd << ", " << endOrd << " + 1)):\n";
                     } else {
-                        ss << indent() << "for " << var << " in range(" << start << ", " << formatRangeEnd(fors->end, 1) << ", " << stepVal << "):\n";
+                        ss << indent() << "for " << var << " in (chr(_c) for _c in range(" << startOrd << ", " << endOrd << " + 1, " << stepVal << ")):\n";
                     }
                 } else if (stepVal < 0) {
-                    ss << indent() << "for " << var << " in range(" << start << ", " << formatRangeEnd(fors->end, -1) << ", " << stepVal << "):\n";
-                } else {
-                    ss << indent() << "for " << var << " in range(" << start << ", " << formatRangeEnd(fors->end, 1) << "):\n";
+                    ss << indent() << "for " << var << " in (chr(_c) for _c in range(" << startOrd << ", " << endOrd << " - 1, " << stepVal << ")):\n";
                 }
             } else {
                 std::string step = transpileExpr(fors->step, 0);
-                std::string end = transpileExpr(fors->end, 0);
-                ss << indent() << "for " << var << " in range(" << start << ", " << end << " + (1 if (" << step << ") > 0 else -1), " << step << "):\n";
+                ss << indent() << "for " << var << " in (chr(_c) for _c in range(" << startOrd << ", " << endOrd << " + (1 if (" << step << ") > 0 else -1), " << step << ")):\n";
+            }
+        } else if (isBoolLoop) {
+            std::string start = transpileExpr(fors->start, 0);
+            std::string end = transpileExpr(fors->end, 0);
+            int64_t stepVal = 1;
+            bool isConstStep = true;
+            if (fors->step) {
+                if (auto num = std::dynamic_pointer_cast<NumberExpr>(fors->step)) {
+                    stepVal = num->value;
+                } else if (auto un = std::dynamic_pointer_cast<UnaryExpr>(fors->step)) {
+                    if (un->op == "-" || un->op == "+") {
+                        if (auto num = std::dynamic_pointer_cast<NumberExpr>(un->operand)) {
+                            stepVal = (un->op == "-") ? -num->value : num->value;
+                        } else isConstStep = false;
+                    } else isConstStep = false;
+                } else isConstStep = false;
+            }
+            if (isConstStep && stepVal == 1 && start == "False" && end == "True") {
+                ss << indent() << "for " << var << " in [False, True]:\n";
+            } else if (isConstStep && stepVal == -1 && start == "True" && end == "False") {
+                ss << indent() << "for " << var << " in [True, False]:\n";
+            } else {
+                std::string stepStr = fors->step ? transpileExpr(fors->step, 0) : "1";
+                ss << indent() << "for " << var << " in (bool(_b) for _b in range(int(" << start << "), int(" << end << ") + (1 if (" << stepStr << ") > 0 else -1), " << stepStr << ")):\n";
             }
         } else {
-            ss << indent() << "for " << var << " in range(" << start << ", " << formatRangeEnd(fors->end, 1) << "):\n";
+            std::string start = transpileExpr(fors->start, 0);
+            if (fors->step) {
+                int64_t stepVal = 0;
+                bool isConstStep = false;
+                if (auto num = std::dynamic_pointer_cast<NumberExpr>(fors->step)) {
+                    stepVal = num->value;
+                    isConstStep = true;
+                } else if (auto un = std::dynamic_pointer_cast<UnaryExpr>(fors->step)) {
+                    if (un->op == "-" || un->op == "+") {
+                        if (auto num = std::dynamic_pointer_cast<NumberExpr>(un->operand)) {
+                            stepVal = (un->op == "-") ? -num->value : num->value;
+                            isConstStep = true;
+                        }
+                    }
+                }
+                if (isConstStep) {
+                    if (stepVal > 0) {
+                        if (stepVal == 1) {
+                            ss << indent() << "for " << var << " in range(" << start << ", " << formatRangeEnd(fors->end, 1) << "):\n";
+                        } else {
+                            ss << indent() << "for " << var << " in range(" << start << ", " << formatRangeEnd(fors->end, 1) << ", " << stepVal << "):\n";
+                        }
+                    } else if (stepVal < 0) {
+                        ss << indent() << "for " << var << " in range(" << start << ", " << formatRangeEnd(fors->end, -1) << ", " << stepVal << "):\n";
+                    } else {
+                        ss << indent() << "for " << var << " in range(" << start << ", " << formatRangeEnd(fors->end, 1) << "):\n";
+                    }
+                } else {
+                    std::string step = transpileExpr(fors->step, 0);
+                    std::string end = transpileExpr(fors->end, 0);
+                    ss << indent() << "for " << var << " in range(" << start << ", " << end << " + (1 if (" << step << ") > 0 else -1), " << step << "):\n";
+                }
+            } else {
+                ss << indent() << "for " << var << " in range(" << start << ", " << formatRangeEnd(fors->end, 1) << "):\n";
+            }
         }
         indentLevel_++;
         if (fors->body.empty()) ss << indent() << "pass\n";

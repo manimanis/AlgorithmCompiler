@@ -66,6 +66,7 @@ static void printHelp(const std::string& progPath) {
               << "UTILISATION :\n"
               << "    " << progName << " <fichier.alg> [OPTIONS]\n"
               << "    " << progName << " <fichier.algb> [OPTIONS]\n"
+              << "    " << progName << " -e \"code\" [OPTIONS]\n"
               << "    " << progName << " [OPTIONS]\n\n"
               << "ARGUMENTS :\n"
               << "    <fichier.alg>                 Chemin du fichier source en pseudo-code algorithmique.\n"
@@ -73,6 +74,7 @@ static void printHelp(const std::string& progPath) {
               << "OPTIONS PRINCIPALES :\n"
               << "    -h, --help                    Affiche ce message d'aide et quitte.\n"
               << "    -v, --version                 Affiche le numéro de version du compilateur.\n"
+              << "    -e, --eval <code>             Exécute directement la chaîne de code algorithmique en ligne.\n"
               << "    -b, --build-exe [out.exe]     Compile l'algorithme sous forme d'un programme exécutable\n"
               << "                                  autonome (.exe) indépendant, sans dépendance externe.\n"
               << "    -c, --compile-bc [out.algb]   Compile l'algorithme en fichier binaire de bytecode (.algb).\n"
@@ -111,6 +113,157 @@ static void printHelp(const std::string& progPath) {
               << "    " << progName << " mon_programme.alg --to-python\n";
 }
 
+#ifdef _WIN32
+static std::wstring unescapeWindowsCommandLine(const std::wstring& s) {
+    std::wstring result;
+    result.reserve(s.size());
+    for (size_t i = 0; i < s.size(); ++i) {
+        if (s[i] == L'\\') {
+            size_t bsCount = 0;
+            while (i < s.size() && s[i] == L'\\') {
+                bsCount++;
+                i++;
+            }
+            if (i < s.size() && s[i] == L'"') {
+                result.append(bsCount / 2, L'\\');
+                result.push_back(L'"');
+            } else {
+                result.append(bsCount, L'\\');
+                if (i < s.size()) {
+                    result.push_back(s[i]);
+                }
+            }
+        } else {
+            result.push_back(s[i]);
+        }
+    }
+    return result;
+}
+
+static bool extractInlineAndSanitizeWindows(std::wstring& cmd, std::string& inlineCode) {
+    size_t pos = std::wstring::npos;
+    size_t flagLen = 0;
+
+    for (size_t i = 0; i < cmd.size(); ++i) {
+        if (i == 0 || iswspace(cmd[i - 1])) {
+            if (cmd.compare(i, 3, L"-e ") == 0 || cmd.compare(i, 3, L"-e\t") == 0) {
+                pos = i;
+                flagLen = 2;
+                break;
+            }
+            if (cmd.compare(i, 7, L"--eval ") == 0 || cmd.compare(i, 7, L"--eval\t") == 0) {
+                pos = i;
+                flagLen = 6;
+                break;
+            }
+        }
+    }
+
+    if (pos == std::wstring::npos) return false;
+
+    size_t start = pos + flagLen;
+    while (start < cmd.size() && iswspace(cmd[start])) start++;
+    if (start >= cmd.size()) return false;
+
+    std::wstring codeW;
+    size_t replaceEnd = start;
+
+    if (cmd[start] == L'"') {
+        start++;
+        size_t end = std::wstring::npos;
+        for (size_t j = cmd.size(); j > start; --j) {
+            if (cmd[j - 1] == L'"') {
+                // Vérifier si le guillemet est échappé par un nombre impair d'anti-slashs (\")
+                size_t bs = 0;
+                size_t k = j - 1;
+                while (k > start && cmd[k - 1] == L'\\') {
+                    bs++;
+                    k--;
+                }
+                if (bs % 2 != 0) {
+                    continue; // Guillemet échappé à l'intérieur du code, ce n'est pas le délimiteur de fin
+                }
+
+                size_t after = j;
+                while (after < cmd.size() && iswspace(cmd[after])) after++;
+                if (after == cmd.size() || cmd[after] == L'-') {
+                    end = j - 1;
+                    replaceEnd = j;
+                    break;
+                }
+            }
+        }
+        if (end == std::wstring::npos) {
+            end = cmd.rfind(L'"');
+            if (end == std::wstring::npos || end <= start) {
+                end = cmd.size();
+                replaceEnd = cmd.size();
+            } else {
+                replaceEnd = end + 1;
+            }
+        }
+        codeW = cmd.substr(start, end - start);
+    } else if (cmd[start] == L'\'') {
+        start++;
+        size_t end = cmd.find(L'\'', start);
+        if (end == std::wstring::npos) {
+            end = cmd.size();
+            replaceEnd = cmd.size();
+        } else {
+            replaceEnd = end + 1;
+        }
+        codeW = cmd.substr(start, end - start);
+    } else {
+        size_t end = start;
+        while (end < cmd.size()) {
+            if (iswspace(cmd[end])) {
+                size_t nxt = end;
+                while (nxt < cmd.size() && iswspace(cmd[nxt])) nxt++;
+                if (nxt < cmd.size() && cmd[nxt] == L'-') break;
+            }
+            end++;
+        }
+        replaceEnd = end;
+        codeW = cmd.substr(start, end - start);
+    }
+
+    codeW = unescapeWindowsCommandLine(codeW);
+
+    int size_needed = WideCharToMultiByte(CP_UTF8, 0, codeW.c_str(), static_cast<int>(codeW.size()), NULL, 0, NULL, NULL);
+    inlineCode.resize(size_needed);
+    WideCharToMultiByte(CP_UTF8, 0, codeW.c_str(), static_cast<int>(codeW.size()), &inlineCode[0], size_needed, NULL, NULL);
+
+    cmd.erase(pos, replaceEnd - pos);
+    return true;
+}
+#endif
+
+static std::string unescapeInlineSource(const std::string& s) {
+    std::string result;
+    result.reserve(s.size());
+    for (size_t i = 0; i < s.size(); ++i) {
+        if (s[i] == '\\') {
+            size_t bsCount = 0;
+            while (i < s.size() && s[i] == '\\') {
+                bsCount++;
+                i++;
+            }
+            if (i < s.size() && s[i] == '"') {
+                result.append(bsCount / 2, '\\');
+                result.push_back('"');
+            } else {
+                result.append(bsCount, '\\');
+                if (i < s.size()) {
+                    result.push_back(s[i]);
+                }
+            }
+        } else {
+            result.push_back(s[i]);
+        }
+    }
+    return result;
+}
+
 int main(int argc, char* argv[]) {
     initConsoleUtf8();
 
@@ -121,7 +274,39 @@ int main(int argc, char* argv[]) {
         return runStandaloneExecutable(selfExe, argc, argv);
     }
 
-    if (argc < 2) {
+    std::string inlineSource;
+    bool hasInlineSource = false;
+    std::vector<std::string> args;
+
+#ifdef _WIN32
+    std::wstring cmd = GetCommandLineW();
+    if (extractInlineAndSanitizeWindows(cmd, inlineSource)) {
+        hasInlineSource = true;
+        int wargc = 0;
+        LPWSTR* wargv = CommandLineToArgvW(cmd.c_str(), &wargc);
+        if (wargv) {
+            for (int i = 0; i < wargc; ++i) {
+                int size_needed = WideCharToMultiByte(CP_UTF8, 0, wargv[i], -1, NULL, 0, NULL, NULL);
+                if (size_needed > 1) {
+                    std::string str(size_needed - 1, 0);
+                    WideCharToMultiByte(CP_UTF8, 0, wargv[i], -1, &str[0], size_needed, NULL, NULL);
+                    args.push_back(str);
+                } else {
+                    args.push_back("");
+                }
+            }
+            LocalFree(wargv);
+        }
+    } else {
+        args = getCommandLineArgs(argc, argv);
+    }
+#else
+    args = getCommandLineArgs(argc, argv);
+#endif
+
+    int numArgs = static_cast<int>(args.size());
+
+    if (numArgs < 2 && !hasInlineSource) {
         std::cout << "Usage: algo <fichier.alg> [OPTIONS]\n"
                   << "Tapez 'algo --help' pour afficher l'aide détaillée." << std::endl;
         return 1;
@@ -150,42 +335,45 @@ int main(int argc, char* argv[]) {
     bool generateFlowchartHtml = false;
     std::string flowchartOutputPath;
 
-    for (int i = 1; i < argc; i++) {
-        std::string arg = argv[i];
+    for (int i = 1; i < numArgs; i++) {
+        const std::string& arg = args[i];
         if (arg == "-h" || arg == "--help") {
-            printHelp(argv[0]);
+            printHelp(args[0]);
             return 0;
         } else if (arg == "-v" || arg == "--version") {
             printVersion();
             return 0;
+        } else if ((arg == "-e" || arg == "--eval") && i + 1 < numArgs) {
+            inlineSource = args[++i];
+            hasInlineSource = true;
         } else if (arg == "-s" || arg == "--signatures" || arg == "--tdo") {
             showSignatures = true;
-            if (i + 1 < argc && argv[i + 1][0] != '-') {
-                signaturesOutputPath = argv[++i];
+            if (i + 1 < numArgs && args[i + 1][0] != '-') {
+                signaturesOutputPath = args[++i];
             }
         } else if (arg == "--json") {
             outputJson = true;
         } else if (arg == "-f" || arg == "--flowchart" || arg == "--mermaid") {
             generateFlowchart = true;
-            if (i + 1 < argc && argv[i + 1][0] != '-') {
-                flowchartOutputPath = argv[++i];
+            if (i + 1 < numArgs && args[i + 1][0] != '-') {
+                flowchartOutputPath = args[++i];
             }
         } else if (arg == "--flowchart-html") {
             generateFlowchartHtml = true;
-            if (i + 1 < argc && argv[i + 1][0] != '-') {
-                flowchartOutputPath = argv[++i];
+            if (i + 1 < numArgs && args[i + 1][0] != '-') {
+                flowchartOutputPath = args[++i];
             }
         } else if (arg == "--leak-check") {
             options.leakCheck = true;
         } else if (arg == "-b" || arg == "--build-exe") {
             buildExe = true;
-            if (i + 1 < argc && argv[i + 1][0] != '-') {
-                exeOutputPath = argv[++i];
+            if (i + 1 < numArgs && args[i + 1][0] != '-') {
+                exeOutputPath = args[++i];
             }
         } else if (arg == "-c" || arg == "--compile-bc") {
             compileBc = true;
-            if (i + 1 < argc && argv[i + 1][0] != '-') {
-                bcOutputPath = argv[++i];
+            if (i + 1 < numArgs && args[i + 1][0] != '-') {
+                bcOutputPath = args[++i];
             }
         } else if (arg == "--check") {
             checkOnly = true;
@@ -199,20 +387,20 @@ int main(int argc, char* argv[]) {
             showTime = true;
         } else if (arg == "--dump-bytecode") {
             dumpBytecode = true;
-        } else if (arg == "--max-iter" && i + 1 < argc) {
-            options.maxIterations = std::stoull(argv[++i]);
+        } else if (arg == "--max-iter" && i + 1 < numArgs) {
+            options.maxIterations = std::stoull(args[++i]);
             hasCliMaxIter = true;
-        } else if ((arg == "--timeout" || arg == "--timeout-ms") && i + 1 < argc) {
-            options.timeoutMs = std::stoull(argv[++i]);
+        } else if ((arg == "--timeout" || arg == "--timeout-ms") && i + 1 < numArgs) {
+            options.timeoutMs = std::stoull(args[++i]);
             hasCliTimeout = true;
-        } else if (arg == "--seed" && i + 1 < argc) {
-            options.seed = (uint32_t)std::stoul(argv[++i]);
+        } else if (arg == "--seed" && i + 1 < numArgs) {
+            options.seed = (uint32_t)std::stoul(args[++i]);
             options.hasSeed = true;
             hasCliSeed = true;
         } else if (arg == "--to-python" || arg == "--py") {
             toPython = true;
-            if (i + 1 < argc && argv[i + 1][0] != '-') {
-                pyOutputPath = argv[++i];
+            if (i + 1 < numArgs && args[i + 1][0] != '-') {
+                pyOutputPath = args[++i];
             }
         } else if (filePath.empty() && arg[0] != '-') {
             filePath = arg;
@@ -223,63 +411,68 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    if (filePath.empty()) {
-        std::cerr << "Erreur: Aucun fichier source fourni." << std::endl;
+    if (filePath.empty() && !hasInlineSource) {
+        std::cerr << "Erreur: Aucun fichier source ni code en ligne (-e) fourni." << std::endl;
         std::cerr << "Tapez 'algo --help' pour afficher l'aide." << std::endl;
         return 1;
     }
 
     std::string source;
     try {
-        // Exécution directe si le fichier fourni est un fichier de bytecode binaire (.algb)
-        bool isBytecodeFile = (filePath.size() >= 5 && filePath.substr(filePath.size() - 5) == ".algb");
-        if (isBytecodeFile) {
-            std::ifstream is(filePath, std::ios::binary);
-            if (!is) {
-                std::cerr << "Erreur: Impossible d'ouvrir le fichier bytecode : " << filePath << std::endl;
-                return 1;
-            }
-            BytecodeProgram bcProg = deserializeProgram(is);
-            if (dumpBytecode) {
-                bcProg.mainChunk.disassemble("Bytecode Principal: " + bcProg.name);
-                for (const auto& kv : bcProg.subroutines) {
-                    kv.second.chunk.disassemble("Sous-programme: " + kv.first);
-                }
-                return 0;
-            }
-            if (buildExe) {
-                if (exeOutputPath.empty()) {
-                    std::filesystem::path p(filePath);
-#ifdef _WIN32
-                    p.replace_extension(".exe");
-#else
-                    p.replace_extension("");
-#endif
-                    exeOutputPath = p.string();
-                }
-                std::string err;
-                if (!buildStandaloneExecutable(bcProg, exeOutputPath, err)) {
-                    std::cerr << "Erreur lors de la génération de l'exécutable autonome : " << err << std::endl;
+        if (hasInlineSource) {
+            source = unescapeInlineSource(inlineSource);
+            if (filePath.empty()) filePath = "<eval>";
+        } else {
+            // Exécution directe si le fichier fourni est un fichier de bytecode binaire (.algb)
+            bool isBytecodeFile = (filePath.size() >= 5 && filePath.substr(filePath.size() - 5) == ".algb");
+            if (isBytecodeFile) {
+                std::ifstream is(filePath, std::ios::binary);
+                if (!is) {
+                    std::cerr << "Erreur: Impossible d'ouvrir le fichier bytecode : " << filePath << std::endl;
                     return 1;
                 }
-                std::cout << "[OK] Exécutable autonome généré avec succès : " << exeOutputPath << std::endl;
+                BytecodeProgram bcProg = deserializeProgram(is);
+                if (dumpBytecode) {
+                    bcProg.mainChunk.disassemble("Bytecode Principal: " + bcProg.name);
+                    for (const auto& kv : bcProg.subroutines) {
+                        kv.second.chunk.disassemble("Sous-programme: " + kv.first);
+                    }
+                    return 0;
+                }
+                if (buildExe) {
+                    if (exeOutputPath.empty()) {
+                        std::filesystem::path p(filePath);
+#ifdef _WIN32
+                        p.replace_extension(".exe");
+#else
+                        p.replace_extension("");
+#endif
+                        exeOutputPath = p.string();
+                    }
+                    std::string err;
+                    if (!buildStandaloneExecutable(bcProg, exeOutputPath, err)) {
+                        std::cerr << "Erreur lors de la génération de l'exécutable autonome : " << err << std::endl;
+                        return 1;
+                    }
+                    std::cout << "[OK] Exécutable autonome généré avec succès : " << exeOutputPath << std::endl;
+                    return 0;
+                }
+                VM vm(options);
+                vm.setOutputCallback([](const std::string& text) {
+                    std::cout << text;
+                });
+                auto t0 = std::chrono::high_resolution_clock::now();
+                vm.run(bcProg);
+                auto t1 = std::chrono::high_resolution_clock::now();
+                if (showTime) {
+                    double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+                    std::cout << "\n[VM] Temps d'exécution : " << std::fixed << std::setprecision(3) << ms << " ms\n";
+                }
                 return 0;
             }
-            VM vm(options);
-            vm.setOutputCallback([](const std::string& text) {
-                std::cout << text;
-            });
-            auto t0 = std::chrono::high_resolution_clock::now();
-            vm.run(bcProg);
-            auto t1 = std::chrono::high_resolution_clock::now();
-            if (showTime) {
-                double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
-                std::cout << "\n[VM] Temps d'exécution : " << std::fixed << std::setprecision(3) << ms << " ms\n";
-            }
-            return 0;
-        }
 
-        source = readFile(filePath);
+            source = readFile(filePath);
+        }
 
         InterpreterOptions fileOpts = InterpreterOptions::fromSource(source);
         if (!hasCliMaxIter) options.maxIterations = fileOpts.maxIterations;

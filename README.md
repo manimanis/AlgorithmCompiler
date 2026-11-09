@@ -2,7 +2,7 @@
 
 **AlgorithmCompiler** est un interpréteur, vérificateur sémantique statique et transpilateur haute performance pour le pseudo-code algorithmique standard utilisé dans l'enseignement secondaire et supérieur en Tunisie (programmes du Baccalauréat tunisien : Mathématiques, Sciences Expérimentales, Sciences de l'Informatique, Technique et Économie-Gestion).
 
-Le projet est développé en **C++20 moderne** et dispose d'une suite complète de **239 tests unitaires automatisés validés à 100%**, d'un **harnais de fuzzing automatisé**, d'un **Studio Web WebAssembly** et d'un pipeline de **CI/CD multiplateforme** (Ubuntu, Windows, macOS).
+Le projet est développé en **C++20 moderne** et dispose d'une suite complète de **246 tests unitaires automatisés validés à 100%**, d'un **harnais de fuzzing automatisé**, d'un **Studio Web WebAssembly** et d'un pipeline de **CI/CD multiplateforme** (Ubuntu, Windows, macOS).
 
 > 📚 **Documentation Complète & Manuel de Référence :**
 > - [📖 Guide Complet de Référence (Markdown)](docs/GUIDE_REFERENCE.md)
@@ -54,7 +54,7 @@ AlgorithmCompiler/
 │   ├── signature_extractor.hpp # Extracteur de signatures & générateur de tables TDO/TDOL/TDNT
 │   ├── token.hpp               # Définitions des types de jetons (Token)
 │   ├── value.hpp               # Modèle de valeur polymorphe (entier, réel, chaîne, tableau, enregistrement, pointeur, fichier)
-│   ├── version.hpp             # Informations de version du compilateur (v1.8.0)
+│   ├── version.hpp             # Informations de version du compilateur (v1.8.1)
 │   └── vm.hpp                  # Machine Virtuelle à pile haute performance (Bytecode VM)
 ├── src/
 │   ├── main.cpp                # Point d'entrée CLI (algo / algo.exe) avec options --vm, --flowchart, --leak-check
@@ -69,7 +69,7 @@ AlgorithmCompiler/
 │   ├── parser.cpp              # Implémentation du parseur avec allocation d'arène & filtrage universel des commentaires
 │   ├── lexer.cpp               # Implémentation du lexer UTF-8
 │   ├── wasm_api.cpp            # API C exportée pour le module WebAssembly (Wasm)
-│   ├── test_runner.cpp         # Runner autonome des 239 tests unitaires
+│   ├── test_runner.cpp         # Runner autonome des 246 tests unitaires
 │   ├── fuzz_runner.cpp         # Harnais de fuzzing automatisé (mutations et robustesse)
 │   └── stub_main.cpp           # Point d'entrée allégé pour la génération d'exécutables autonomes
 ├── web/
@@ -84,7 +84,7 @@ AlgorithmCompiler/
 ├── build.bat                   # Script batch de compilation pour Windows
 ├── build_wasm.sh               # Script de compilation WebAssembly pour Linux / macOS
 ├── build_wasm.bat              # Script batch de compilation WebAssembly avec auto-détection emsdk
-├── tests/                      # 239 tests couvrant toutes les fonctionnalités et optimisations
+├── tests/                      # 246 tests couvrant toutes les fonctionnalités et optimisations
 └── scripts/                    # Scripts Node.js pour compilation et validation
 ```
 
@@ -478,7 +478,7 @@ node scripts/compile.js
 Les exécutables générés sous Windows sont :
 - `algo.exe` : Le compilateur, interpréteur et transpilateur principal (autonome, sans dépendance DLL).
 - `algo_stub.exe` : Le stub d'exécution VM allégé utilisé pour la génération d'exécutables autonomes.
-- `run_tests.exe` : Le runner de la suite des 239 tests unitaires.
+- `run_tests.exe` : Le runner de la suite des 246 tests unitaires.
 
 ---
 
@@ -563,6 +563,7 @@ En cas d'erreur à l'exécution (division par zéro, débordement d'indice, dér
 ### Options de la ligne de commande
 - `-h, --help` : Affiche l'aide détaillée et les exemples d'utilisation.
 - `-v, --version` : Affiche le numéro de version du compilateur.
+- `-e, --eval <code>` : Exécute directement du pseudo-code en ligne sans nécessiter de fichier (supporte les chaînes multilignes et les options CLI).
 - `-f, --flowchart, --mermaid [out]` : Génère l'organigramme (algorigramme) au format Mermaid.
 - `--flowchart-html [out.html]` : Génère une page HTML autonome interactive avec zoom & export SVG.
 - `--leak-check` : Active le détecteur de fuites de mémoire (Memory Leak Checker) pour les pointeurs.
@@ -606,7 +607,7 @@ AlgorithmCompiler intègre une application Web complète (`web/index.html`) prê
 
 ## 🧪 Suite de Tests Automatisée, Fuzzing & CI/CD
 
-AlgorithmCompiler dispose d'une suite de **239 tests unitaires validés à 100%**, d'un **harnais de fuzzing automatisé** et d'un pipeline de **CI/CD GitHub Actions**.
+AlgorithmCompiler dispose d'une suite de **246 tests unitaires validés à 100%**, d'un **harnais de fuzzing automatisé** et d'un pipeline de **CI/CD GitHub Actions**.
 
 ### Lancer tous les tests unitaires en C++
 Sous Linux / macOS :
@@ -626,8 +627,8 @@ Résultats obtenus :
 ========================================================
                   RÉSULTATS DES TESTS                   
 ========================================================
- Total tests : 239
- Réussis     : 239
+ Total tests : 246
+ Réussis     : 246
  Échoués     : 0 (100% SUCCÈS)
  Durée       : ~1800 ms
 ========================================================
@@ -653,7 +654,7 @@ Le workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) compile et te
 - **Ubuntu Linux** (GCC 13/14)
 - **Windows** (MinGW UCRT64)
 - **macOS** (Apple Clang)
-Chaque étape valide la compilation, les 239 tests unitaires, le fuzzing, les benchmarks et la transpilation Python.
+Chaque étape valide la compilation, les 246 tests unitaires, le fuzzing, les benchmarks et la transpilation Python.
 
 ### Lancer les tests du transpilateur Python (facultatif)
 Nécessite Node.js et Python 3 :

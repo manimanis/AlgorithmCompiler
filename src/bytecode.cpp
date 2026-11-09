@@ -52,6 +52,7 @@ const char* opCodeName(OpCode op) {
         case OpCode::OP_DIV_INT: return "OP_DIV_INT";
         case OpCode::OP_MOD: return "OP_MOD";
         case OpCode::OP_NEG: return "OP_NEG";
+        case OpCode::OP_LOOP_STEP: return "OP_LOOP_STEP";
         case OpCode::OP_NOT: return "OP_NOT";
         case OpCode::OP_AND: return "OP_AND";
         case OpCode::OP_OR: return "OP_OR";

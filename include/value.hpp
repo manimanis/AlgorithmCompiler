@@ -72,6 +72,7 @@ public:
     bool isFile() const { return (type == ValueType::Ref && refPtr) ? refPtr->isFile() : type == ValueType::FileHandle; }
     bool isRef() const { return type == ValueType::Ref; }
     bool isPointer() const { return (type == ValueType::Ref && refPtr) ? refPtr->isPointer() : type == ValueType::Pointer; }
+    bool isScalar() const { return isInt() || isBool() || (isString() && strVal.size() == 1); }
 
     Value& deref() {
         if (type == ValueType::Ref && refPtr) return refPtr->deref();
@@ -159,6 +160,7 @@ public:
     Value divReal(const Value& other) const;
     Value divInt(const Value& other) const;
     Value mod(const Value& other) const;
+    Value stepValue(int64_t step) const;
 
     // Comparisons
     bool equals(const Value& other) const;

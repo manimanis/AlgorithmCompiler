@@ -830,7 +830,7 @@ void BytecodeCompiler::visit(ForStmt& node) {
         emitOp(OpCode::OP_CONST);
         emitUint32(addConstant(Value((int64_t)1)));
     }
-    emitOp(OpCode::OP_ADD);
+    emitOp(OpCode::OP_LOOP_STEP);
 
     if (localIdx != -1) {
         emitOp(locals_[localIdx].byRef ? OpCode::OP_POP_REF : OpCode::OP_POP_LOCAL);
