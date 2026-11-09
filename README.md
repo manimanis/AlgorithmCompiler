@@ -42,9 +42,10 @@ AlgorithmCompiler/
 │   ├── arena.hpp               # Allocateur d'arène (Bump/Arena Allocator pour l'AST)
 │   ├── ast.hpp                 # Arbre Syntaxique Abstrait & Interfaces Visiteur (ExprVisitor, StmtVisitor)
 │   ├── bytecode.hpp            # Définitions des Opcodes, Chunks et BytecodeProgram
-│   ├── bytecode_compiler.hpp   # Compilateur AST vers Bytecode linéaire
-│   ├── common.hpp              # Utilitaires de chaîne, encodage UTF-8, erreurs
+│   ├── bytecode_compiler.hpp   # Compilateur AST vers Bytecode linéaire & Optimiseur DCE
+│   ├── common.hpp              # Utilitaires de chaîne, encodage UTF-8, erreurs, MemoryTracker
 │   ├── environment.hpp         # Environnement d'exécution et table des symboles
+│   ├── flowchart_generator.hpp # Générateur d'organigrammes Mermaid & HTML interactif
 │   ├── interpreter.hpp         # Moteur d'interprétation AST via le patron Visiteur
 │   ├── lexer.hpp               # Analyseur lexical (tokens, mots-clés, symboles)
 │   ├── parser.hpp              # Analyseur syntaxique descendant récursif
@@ -53,26 +54,37 @@ AlgorithmCompiler/
 │   ├── signature_extractor.hpp # Extracteur de signatures & générateur de tables TDO/TDOL/TDNT
 │   ├── token.hpp               # Définitions des types de jetons (Token)
 │   ├── value.hpp               # Modèle de valeur polymorphe (entier, réel, chaîne, tableau, enregistrement, pointeur, fichier)
+│   ├── version.hpp             # Informations de version du compilateur (v1.8.0)
 │   └── vm.hpp                  # Machine Virtuelle à pile haute performance (Bytecode VM)
 ├── src/
-│   ├── main.cpp                # Point d'entrée CLI (algo / algo.exe) avec options --vm, --ast, --dump-bytecode
+│   ├── main.cpp                # Point d'entrée CLI (algo / algo.exe) avec options --vm, --flowchart, --leak-check
 │   ├── bytecode.cpp            # Gestion des chunks de bytecode et désassembleur
-│   ├── bytecode_compiler.cpp   # Implémentation de la compilation AST -> Bytecode
+│   ├── bytecode_compiler.cpp   # Implémentation de la compilation AST -> Bytecode avec élimination du code mort
+│   ├── flowchart_generator.cpp # Implémentation de la génération d'organigrammes (Mermaid & HTML svg-pan-zoom)
 │   ├── vm.cpp                  # Implémentation du moteur de la machine virtuelle
 │   ├── semantic_analyzer.cpp   # Implémentation de la vérification sémantique
 │   ├── python_transpiler.cpp   # Implémentation du transpilateur Python
 │   ├── signature_extractor.cpp # Implémentation de l'extraction de signatures et inférence TDO/TDOL
-│   ├── interpreter.cpp         # Implémentation de l'interpréteur par Visiteur
-│   ├── parser.cpp              # Implémentation du parseur avec allocation d'arène
-│   ├── lexer.cpp               # Implémentation du lexer
-│   ├── test_runner.cpp         # Runner autonome des 223 tests unitaires
-│   └── fuzz_runner.cpp         # Harnais de fuzzing automatisé (mutations et robustesse)
+│   ├── interpreter.cpp         # Implémentation de l'interpréteur par Visiteur avec suivi mémoire
+│   ├── parser.cpp              # Implémentation du parseur avec allocation d'arène & filtrage universel des commentaires
+│   ├── lexer.cpp               # Implémentation du lexer UTF-8
+│   ├── wasm_api.cpp            # API C exportée pour le module WebAssembly (Wasm)
+│   ├── test_runner.cpp         # Runner autonome des 239 tests unitaires
+│   ├── fuzz_runner.cpp         # Harnais de fuzzing automatisé (mutations et robustesse)
+│   └── stub_main.cpp           # Point d'entrée allégé pour la génération d'exécutables autonomes
+├── web/
+│   ├── index.html              # Studio Web interactif (Monaco Editor, Visualiseur Mermaid, Console, Wasm)
+│   ├── app.js                  # Logique d'interface, liaison WebAssembly et rendu temps réel
+│   ├── algo.js                 # Glue code JavaScript généré par Emscripten
+│   └── algo.wasm               # Binaire WebAssembly haute performance compilé
 ├── .github/workflows/
 │   └── ci.yml                  # Pipeline CI/CD GitHub Actions multi-OS (Linux, macOS, Windows)
-├── Makefile                    # Makefile universel multiplateforme (Linux, macOS, Windows)
+├── Makefile                    # Makefile universel multiplateforme avec cible wasm
 ├── build.sh                    # Script shell de compilation directe pour Linux / macOS
 ├── build.bat                   # Script batch de compilation pour Windows
-├── tests/                      # 223 tests couvrant toutes les fonctionnalités et optimisations
+├── build_wasm.sh               # Script de compilation WebAssembly pour Linux / macOS
+├── build_wasm.bat              # Script batch de compilation WebAssembly avec auto-détection emsdk
+├── tests/                      # 239 tests couvrant toutes les fonctionnalités et optimisations
 └── scripts/                    # Scripts Node.js pour compilation et validation
 ```
 
@@ -466,7 +478,7 @@ node scripts/compile.js
 Les exécutables générés sous Windows sont :
 - `algo.exe` : Le compilateur, interpréteur et transpilateur principal (autonome, sans dépendance DLL).
 - `algo_stub.exe` : Le stub d'exécution VM allégé utilisé pour la génération d'exécutables autonomes.
-- `run_tests.exe` : Le runner de la suite des 223 tests unitaires.
+- `run_tests.exe` : Le runner de la suite des 239 tests unitaires.
 
 ---
 
@@ -641,7 +653,7 @@ Le workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) compile et te
 - **Ubuntu Linux** (GCC 13/14)
 - **Windows** (MinGW UCRT64)
 - **macOS** (Apple Clang)
-Chaque étape valide la compilation, les 223 tests unitaires, le fuzzing, les benchmarks et la transpilation Python.
+Chaque étape valide la compilation, les 239 tests unitaires, le fuzzing, les benchmarks et la transpilation Python.
 
 ### Lancer les tests du transpilateur Python (facultatif)
 Nécessite Node.js et Python 3 :

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AlgorithmCompiler v1.7.0 — Manuel de Référence & Aide Complète</title>
+    <title>AlgorithmCompiler v1.8.0 — Manuel de Référence & Aide Complète</title>
     <style>
         :root {
             --primary: #2563eb;
@@ -355,48 +355,42 @@
         <div class="brand-title">
             <span>⚡ algo.exe</span>
         </div>
-        <div class="brand-subtitle">AlgorithmCompiler v1.7.0</div>
+        <div class="brand-subtitle">AlgorithmCompiler v1.8.0</div>
 
         <input type="text" id="searchInput" class="search-box" placeholder="Rechercher une instruction..." onkeyup="filterDocs()">
 
         <div class="nav-section">
             <div class="nav-title">Général</div>
             <ul class="nav-links">
-                <li><a href="#intro">Vue d'ensemble</a></li>
-                <li><a href="#cli">Ligne de commande (CLI)</a></li>
-                <li><a href="#structure">Structure d'un Algorithme</a></li>
+                <li><a href="#intro">1. Vue d'ensemble</a></li>
+                <li><a href="#cli">2. Ligne de commande CLI</a></li>
+                <li><a href="#structure">3. Structure d'un Algorithme</a></li>
             </ul>
         </div>
 
         <div class="nav-section">
             <div class="nav-title">Langage & Types</div>
             <ul class="nav-links">
-                <li><a href="#types">Types de Données & Tableaux</a></li>
-                <li><a href="#operators">Opérateurs & Expressions</a></li>
+                <li><a href="#types">4. Types de Données</a></li>
+                <li><a href="#operators">5. Opérateurs & Expressions</a></li>
+                <li><a href="#instructions">6. Instructions Supportées</a></li>
+                <li><a href="#builtins">7. Fonctions Prédéfinies</a></li>
             </ul>
         </div>
 
         <div class="nav-section">
-            <div class="nav-title">Instructions Supportées</div>
+            <div class="nav-title">Moteurs & Outils Avancés</div>
             <ul class="nav-links">
-                <li><a href="#inst-assign">Affectation (←, :=)</a></li>
-                <li><a href="#inst-io">Entrées / Sorties (Ecrire, Lire)</a></li>
-                <li><a href="#inst-if">Conditionnelle (Si ... Sinon)</a></li>
-                <li><a href="#inst-switch">Aiguillage (Selon ... Cas)</a></li>
-                <li><a href="#inst-loops">Boucles (Pour, Tant Que, Répéter)</a></li>
-                <li><a href="#inst-subprograms">Procédures & Fonctions</a></li>
-                <li><a href="#inst-files">Manipulation de Fichiers</a></li>
-                <li><a href="#inst-pointers">Pointeurs & Mémoire (Allouer, Liberer)</a></li>
-            </ul>
-        </div>
-
-        <div class="nav-section">
-            <div class="nav-title">Bibliothèque & Moteurs</div>
-            <ul class="nav-links">
-                <li><a href="#builtins">Fonctions Prédéfinies</a></li>
-                <li><a href="#diagnostics">Diagnostics Sémantiques</a></li>
-                <li><a href="#python">Transpilateur Python 3</a></li>
-                <li><a href="#vm">Machine Virtuelle & Bytecode</a></li>
+                <li><a href="#diagnostics">8. Diagnostics Sémantiques</a></li>
+                <li><a href="#python">9. Transpilateur Python 3</a></li>
+                <li><a href="#vm">10. Machine Virtuelle Bytecode</a></li>
+                <li><a href="#structures-dyn">11. Structures Dynamiques</a></li>
+                <li><a href="#flowchart">12. Organigrammes (Mermaid)</a></li>
+                <li><a href="#leakcheck">13. Vérificateur Fuites Mémoire</a></li>
+                <li><a href="#stacktrace">14. Trace d'Exécution Runtime</a></li>
+                <li><a href="#dce">15. Optimisations Bytecode & DCE</a></li>
+                <li><a href="#wasm">16. Studio Web & WebAssembly</a></li>
+                <li><a href="#comments">17. Gestion des Commentaires</a></li>
             </ul>
         </div>
     </nav>
@@ -405,13 +399,15 @@
     <main id="content">
         <!-- Hero Header -->
         <section class="hero-banner">
-            <h1>AlgorithmCompiler <span style="font-size: 1.2rem; color: var(--accent);">v1.7.0</span></h1>
-            <p>Interpréteur C++20 moderne, Machine Virtuelle à Bytecode optimisée, Analyseur Sémantique avec diagnostics visuels et Transpilateur Python 3 pour le standard officiel du Baccalauréat tunisien.</p>
+            <h1>AlgorithmCompiler <span style="font-size: 1.2rem; color: var(--accent);">v1.8.0</span></h1>
+            <p>Interpréteur C++20 moderne, Machine Virtuelle à Bytecode optimisée, Analyseur Sémantique avec diagnostics visuels, Générateur d'Organigrammes Mermaid/HTML, Détecteur de Fuites Mémoire, Studio WebAssembly et Transpilateur Python 3 pour le standard officiel du Baccalauréat tunisien.</p>
             <div class="hero-badges">
-                <span class="badge green">✓ 223 Tests Unitaires (100% Succès)</span>
-                <span class="badge blue">⚡ VM Bytecode (~78x plus rapide)</span>
+                <span class="badge green">✓ 239 Tests Unitaires (100% Succès)</span>
+                <span class="badge blue">⚡ VM Bytecode & DCE Optimisé</span>
                 <span class="badge orange">🎯 Standard Baccalauréat Tunisie</span>
-                <span class="badge">🐍 Transpilateur Python 3 (NumPy)</span>
+                <span class="badge">🌐 Studio Web & Wasm</span>
+                <span class="badge">📊 Organigrammes Mermaid</span>
+                <span class="badge">🛡️ Memory Leak Checker</span>
             </div>
         </section>
 
@@ -450,7 +446,22 @@ algo.exe [OPTIONS]</code><button class="copy-btn" onclick="copyCode(this)">Copie
                     <tr>
                         <td><code>-v, --version</code></td>
                         <td>—</td>
-                        <td>Affiche la version (v1.7.0), le compilateur hôte, la plateforme et le standard C++20.</td>
+                        <td>Affiche la version (v1.8.0), le compilateur hôte, la plateforme et le standard C++20.</td>
+                    </tr>
+                    <tr>
+                        <td><code>-f, --flowchart, --mermaid</code></td>
+                        <td><code>[diagramme.mmd]</code></td>
+                        <td>Génère l'<strong>organigramme (algorigramme)</strong> au format Mermaid pur pour intégration Markdown / GitHub.</td>
+                    </tr>
+                    <tr>
+                        <td><code>--flowchart-html</code></td>
+                        <td><code>[page.html]</code></td>
+                        <td>Génère une <strong>page HTML autonome interactive</strong> avec zoom panoramique (<code>svg-pan-zoom</code>), reset et export vectoriel SVG.</td>
+                    </tr>
+                    <tr>
+                        <td><code>--leak-check</code></td>
+                        <td>—</td>
+                        <td>Active le <strong>vérificateur de fuites de mémoire (Memory Leak Checker)</strong> pour tracer chaque pointeur alloué et non libéré.</td>
                     </tr>
                     <tr>
                         <td><code>--check</code></td>
@@ -547,11 +558,10 @@ Remplir, Trier, Afficher : Procédure</code><button class="copy-btn" onclick="co
             <div class="card">
                 <div class="card-title">Tables déclaratives reconnues :</div>
                 <ul style="padding-left: 20px; color: #cbd5e1;">
-                    <li><strong><code>TDO</code> / <code>TDOG</code> :</strong> Tableau de Déclaration des Objets Globaux (variables, constantes, procédures).</li>
-                    <li><strong><code>TDNT</code> :</strong> Tableau de Déclaration des Nouveaux Types (enregistrements, alias de tableaux, énumérés).</li>
-                    <li><strong><code>TDOL</code> :</strong> Tableau de Déclaration des Objets Locaux (spécifique au sous-programme qui le précède).</li>
-                    <li><strong><code>Const</code> :</strong> Déclarations de constantes globales directes.</li>
-                    <li><strong><code>Importer</code> :</strong> Inclusion modulaire de bibliothèques tierces (ex: <code>Importer "math_utils.alg"</code>).</li>
+                    <li><strong><code>TDNT</code> :</strong> Tableau de Déclaration des Nouveaux Types (enregistrements, tableaux personnalisés, types énumérés et sous-intervalles).</li>
+                    <li><strong><code>TDO</code> / <code>TDOG</code> :</strong> Tableau de Déclaration des Objets Globaux (variables, constantes et procédures globales).</li>
+                    <li><strong><code>TDOL</code> :</strong> Tableau de Déclaration des Objets Locaux (associé à chaque procédure ou fonction).</li>
+                    <li><strong><code>Importer</code> :</strong> Inclusion modulaire de fichiers ou bibliothèques externes (ex: <code>Importer Racine Depuis "math_utils.alg"</code>).</li>
                 </ul>
             </div>
         </section>
@@ -594,17 +604,17 @@ Remplir, Trier, Afficher : Procédure</code><button class="copy-btn" onclick="co
                         <td><code>b ← Vrai</code>, <code>b ← Faux</code></td>
                     </tr>
                     <tr>
-                        <td><strong>Tableau 1D</strong></td>
+                        <td><strong>Tableau</strong></td>
                         <td><code>t : Tableau de 20 entier</code></td>
                         <td><code>t[0] ← 15</code>, <code>val ← t[i]</code></td>
                     </tr>
                     <tr>
-                        <td><strong>Matrice 2D</strong></td>
+                        <td><strong>Matrice</strong></td>
                         <td><code>M : Tableau de 2 lignes * 2 colonnes de entier</code><br>ou <code>Tableau de 3, 4 de réel</code></td>
                         <td><code>M[i, j] ← 1.0</code> ou <code>M[i][j] ← 1.0</code></td>
                     </tr>
                     <tr>
-                        <td><strong>Enregistrement</strong></td>
+                        <td><strong>Enregistrements et Structures Imbriquées</strong></td>
                         <td><code>E : Enregistrement ... Fin</code></td>
                         <td><code>e.nom ← "Sami"</code>, <code>e.date.annee ← 2007</code></td>
                     </tr>
@@ -655,7 +665,7 @@ Remplir, Trier, Afficher : Procédure</code><button class="copy-btn" onclick="co
                     </tr>
                     <tr>
                         <td><strong>Appartenance</strong></td>
-                        <td><code>∈</code> ou <code>dans</code> (ex: <code>Si x ∈ [1 .. 50] Alors</code>)</td>
+                        <td><code>∈</code> ou <code>dans</code> (ex: <code>Si x ∈ [1 .. 50] Alors</code> ou <code>Si x ∈ {1, 3, 5, 7} Alors</code>)</td>
                     </tr>
                 </table>
             </div>
@@ -724,15 +734,15 @@ Fin Si</code><button class="copy-btn" onclick="copyCode(this)">Copier</button></
 
             <!-- Selon -->
             <div class="instruction-item" data-category="control">
-                <h3 id="inst-switch">6.4 Aiguillage Multiple (`Selon ... Cas ... Autrement ... Fin Selon`)</h3>
+                <h3 id="inst-switch">6.4 Aiguillage Multiple (`Selon ... Cas ... Sinon ... Fin Selon`)</h3>
                 <pre><code>Selon code_choix Faire
-    Cas 1 :
+    1 :
         Ecrire("Opération d'ajout")
-    Cas 2, 3 :
+    2, 3 :
         Ecrire("Opération de consultation ou modification")
-    Cas 4 .. 9 :
+    4 .. 9 :
         Ecrire("Opération d'administration")
-    Autrement :
+    Sinon
         Ecrire("Code opération non reconnu !")
 Fin Selon</code><button class="copy-btn" onclick="copyCode(this)">Copier</button></pre>
             </div>
@@ -765,8 +775,8 @@ Jusqu'à 3 ≤ taille ≤ 30</code><button class="copy-btn" onclick="copyCode(th
 
             <!-- Sous-programmes -->
             <div class="instruction-item" data-category="subprogram">
-                <h3 id="inst-subprograms">6.6 Procédures & Fonctions (`@param` par référence, `Retourner`)</h3>
-                <pre><code>// Procédure avec passage par référence '@'
+                <h3 id="inst-subprograms">6.6 Procédures & Fonctions (`@param` par adresse, `Retourner`)</h3>
+                <pre><code>// Procédure avec passage par adresse '@'
 Procédure Inverser_Tableau(@t : TabNotes; n : entier)
 Début
     Pour i de 0 à (n div 2) - 1 Faire
@@ -793,7 +803,7 @@ Fin</code><button class="copy-btn" onclick="copyCode(this)">Copier</button></pre
                 <h3 id="inst-files">6.7 Manipulation de Fichiers (`Ouvrir`, `Lire_Ligne`, `Aller_A`, `Fermer`)</h3>
                 <pre><code>// 1. Écriture dans un fichier texte ("w" = écriture, "a" = ajout, "r" = lecture)
 Ouvrir(f, "resultats.txt", "w")
-Ecrire(f, "Algorithme v1.7.0")
+Ecrire(f, "Algorithme v1.8.0")
 Fermer(f)
 
 // 2. Lecture ligne à ligne jusqu'à la fin de fichier
@@ -828,73 +838,139 @@ Liberer(p)</code><button class="copy-btn" onclick="copyCode(this)">Copier</butto
         <!-- Section: Builtins -->
         <section id="builtins">
             <h2>7. Bibliothèque Standard des Fonctions Prédéfinies</h2>
+            
+            <h3>7.1 Fonctions Incluses dans le Programme Officiel</h3>
             <table>
                 <thead>
                     <tr>
-                        <th>Catégorie</th>
+                        <th>Domaine</th>
                         <th>Fonction</th>
                         <th>Description & Comportement</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr>
-                        <td rowspan="6"><strong>Maths</strong></td>
+                        <td rowspan="4"><strong>Mathématiques</strong></td>
                         <td><code>Racine(x)</code></td>
-                        <td>Calcule la racine carrée $\sqrt{x}$.</td>
+                        <td>Calcule la racine carrée $\sqrt{x}$ (renvoie un <code>réel</code>).</td>
                     </tr>
                     <tr>
-                        <td><code>Carre(x)</code> / <code>Abs(x)</code></td>
-                        <td>Carré ($x^2$) et valeur absolue ($\|x\|$).</td>
+                        <td><code>Abs(x)</code></td>
+                        <td>Valeur absolue ($\|x\|$) (renvoie le même type).</td>
                     </tr>
                     <tr>
-                        <td><code>Ent(x)</code> / <code>Arrondi(x)</code></td>
-                        <td>Partie entière ($\lfloor x \rfloor$) et arrondi au plus proche.</td>
+                        <td><code>Ent(x)</code></td>
+                        <td>Partie entière / troncature de la partie décimale (renvoie un <code>entier</code>).</td>
+                    </tr>
+                    <tr>
+                        <td><code>Arrondi(x)</code></td>
+                        <td>Arrondi à l'entier le plus proche (renvoie un <code>entier</code>).</td>
+                    </tr>
+                    <tr>
+                        <td rowspan="10"><strong>Chaînes & Caractères</strong></td>
+                        <td><code>Long(ch)</code></td>
+                        <td>Nombre de caractères d'une chaîne UTF-8 (ou nombre d'éléments d'un tableau).</td>
+                    </tr>
+                    <tr>
+                        <td><code>Chr(code)</code></td>
+                        <td>Caractère correspondant au code ASCII spécifié.</td>
+                    </tr>
+                    <tr>
+                        <td><code>Ord(c)</code></td>
+                        <td>Code ASCII d'un caractère ou valeur ordinale d'un énuméré.</td>
+                    </tr>
+                    <tr>
+                        <td><code>ConvCh(n)</code></td>
+                        <td>Convertit un entier ou réel en chaîne de caractères.</td>
+                    </tr>
+                    <tr>
+                        <td><code>Valeur(ch)</code></td>
+                        <td>Convertit une chaîne numérique en entier ou réel.</td>
+                    </tr>
+                    <tr>
+                        <td><code>Sous_Chaine(ch, d, f)</code></td>
+                        <td>Extrait la sous-chaîne comprise entre les indices $d$ et $f$.</td>
+                    </tr>
+                    <tr>
+                        <td><code>Pos(sous_ch, ch)</code></td>
+                        <td>Première position de <code>sous_ch</code> dans <code>ch</code> (-1 si absente).</td>
+                    </tr>
+                    <tr>
+                        <td><code>Majus(ch)</code></td>
+                        <td>Convertit toutes les lettres d'une chaîne en majuscules.</td>
+                    </tr>
+                    <tr>
+                        <td><code>Effacer(ch, d, n)</code></td>
+                        <td>Supprime $n$ caractères à partir de la position $d$.</td>
+                    </tr>
+                    <tr>
+                        <td><code>EstNum(ch)</code> / <code>Est_Num(ch)</code></td>
+                        <td>Vérifie si une chaîne représente un nombre valide (Vrai/Faux).</td>
+                    </tr>
+                    <tr>
+                        <td rowspan="3"><strong>Fichiers</strong></td>
+                        <td><code>Fin_Fichier(f)</code></td>
+                        <td>Renvoie <code>Vrai</code> si la fin du fichier est atteinte.</td>
+                    </tr>
+                    <tr>
+                        <td><code>Taille_Fichier(f)</code> / <code>Taille(f)</code></td>
+                        <td>Nombre total d'enregistrements du fichier.</td>
+                    </tr>
+                    <tr>
+                        <td><code>Position_Fichier(f)</code> / <code>Pointeur(f)</code></td>
+                        <td>Position actuelle dans le fichier.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Aléatoire</strong></td>
+                        <td><code>Alea(min, max)</code></td>
+                        <td>Tire un entier pseudo-aléatoire uniforme dans $[min, max]$.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>7.2 Fonctions Supplémentaires Prises en Charge</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Domaine</th>
+                        <th>Fonction</th>
+                        <th>Description & Comportement</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td rowspan="6"><strong>Maths Avancées</strong></td>
+                        <td><code>Carre(x)</code></td>
+                        <td>Élévation au carré ($x^2$).</td>
+                    </tr>
+                    <tr>
+                        <td><code>Exp(x)</code> / <code>Ln(x)</code> / <code>Log(x)</code></td>
+                        <td>Exponentielle ($e^x$) et logarithme naturel.</td>
                     </tr>
                     <tr>
                         <td><code>Frac(x)</code></td>
                         <td>Partie fractionnaire ($x - \lfloor x \rfloor$).</td>
                     </tr>
                     <tr>
-                        <td><code>Exp(x)</code> / <code>Ln(x)</code></td>
-                        <td>Exponentielle ($e^x$) et logarithme naturel.</td>
-                    </tr>
-                    <tr>
                         <td><code>Sin(x)</code>, <code>Cos(x)</code>, <code>Tan(x)</code>, <code>Arctan(x)</code></td>
                         <td>Trigonométrie standard en radians.</td>
                     </tr>
                     <tr>
-                        <td rowspan="6"><strong>Chaînes & Caractères</strong></td>
-                        <td><code>Long(ch)</code></td>
-                        <td>Nombre de caractères d'une chaîne UTF-8 (ou longueur d'un tableau).</td>
-                    </tr>
-                    <tr>
-                        <td><code>Chr(code)</code> / <code>Ord(c)</code></td>
-                        <td>Conversion code ASCII $\leftrightarrow$ caractère.</td>
-                    </tr>
-                    <tr>
-                        <td><code>ConvCh(n)</code> / <code>Valeur(ch)</code></td>
-                        <td>Conversion nombre vers chaîne et chaîne vers nombre.</td>
-                    </tr>
-                    <tr>
-                        <td><code>Sous_Chaine(ch, d, f)</code></td>
-                        <td>Extrait la tranche de chaîne comprise entre $d$ et $f$.</td>
-                    </tr>
-                    <tr>
-                        <td><code>Pos(sous_ch, ch)</code></td>
-                        <td>Renvoie la première position de <code>sous_ch</code> dans <code>ch</code> (ou -1).</td>
-                    </tr>
-                    <tr>
-                        <td><code>Majus(ch)</code> / <code>Minus(ch)</code></td>
-                        <td>Conversion casse en majuscules ou minuscules.</td>
-                    </tr>
-                    <tr>
-                        <td rowspan="2"><strong>Aléatoire</strong></td>
-                        <td><code>Alea(min, max)</code></td>
-                        <td>Génère un entier pseudo-aléatoire dans $[min, max]$.</td>
+                        <td><code>Puissance(b, e)</code></td>
+                        <td>Élévation à la puissance ($b^e$).</td>
                     </tr>
                     <tr>
                         <td><code>Graine(seed)</code></td>
-                        <td>Initialise le générateur pseudo-aléatoire avec une graine fixe.</td>
+                        <td>Initialise la graine pseudo-aléatoire pour reproductibilité des tests.</td>
+                    </tr>
+                    <tr>
+                        <td rowspan="2"><strong>Chaînes Avancées</strong></td>
+                        <td><code>Minus(ch)</code></td>
+                        <td>Convertit une chaîne en lettres minuscules.</td>
+                    </tr>
+                    <tr>
+                        <td><code>Inserer(ch1, ch2, pos)</code></td>
+                        <td>Insère <code>ch1</code> dans <code>ch2</code> à la position <code>pos</code>.</td>
                     </tr>
                 </tbody>
             </table>
@@ -903,7 +979,15 @@ Liberer(p)</code><button class="copy-btn" onclick="copyCode(this)">Copier</butto
         <!-- Section: Diagnostics -->
         <section id="diagnostics">
             <h2>8. Diagnostics Sémantiques & Messages Rust-style</h2>
-            <p>L'analyseur sémantique d'AlgorithmCompiler fournit des messages précis avec numéros de lignes, colonnes, soulignement visuel du problème et proposition de correction la plus probable par distance de Levenshtein :</p>
+            <p>L'analyseur sémantique (<code>algo.exe --check</code>) valide l'intégralité du code avant toute exécution et signale :</p>
+            <ul>
+                <li>Les variables, procédures ou fonctions non déclarées dans le TDO/TDOL/TDNT.</li>
+                <li>Les incohérences de types (affectation d'une chaîne dans un entier, condition non booléenne dans un <code>Si</code> ou <code>Tant Que</code>).</li>
+                <li>Les violations d'arité (nombre d'arguments incorrect lors de l'appel).</li>
+                <li>Les passages d'expressions constantes ou de littéraux à des paramètres passés par adresse (<code>@param</code>).</li>
+                <li>Les accès à des champs inexistants dans des enregistrements.</li>
+            </ul>
+            <p>Les messages d'erreur fournissent le numéro de ligne, la colonne, le soulignement visuel du problème (<code>^~~~</code>) et la proposition de correction la plus probable par distance de Levenshtein :</p>
 
             <pre><code>Erreur sémantique (ligne 4, colonne 10) :
       Ecrire(totla + 1)
@@ -925,9 +1009,18 @@ Suggestion : Vouliez-vous dire 'total' ? (ligne 4)</code><button class="copy-btn
 
         <!-- Section: VM -->
         <section id="vm">
-            <h2>10. Machine Virtuelle à Bytecode (`--vm`, `--dump-bytecode`)</h2>
-            <p>Le moteur VM intègre un optimiseur peephole, le pliage de constantes à la compilation et des chemins d'exécution rapides dédiés aux tableaux et aux calculs entiers 64 bits. Vous pouvez inspecter le bytecode généré en passant l'option <code>--dump-bytecode</code> :</p>
+            <h2>10. Machine Virtuelle, Bytecode Binaire & Exécutables Autonomes (`--vm`, `--compile-bc`, `--build-exe`)</h2>
+            <p>La Machine Virtuelle à Bytecode d'AlgorithmCompiler offre des gains de performance de plus de <strong>75x</strong> par rapport à l'évaluation pure d'AST :</p>
+            <ul>
+                <li><strong>Fast-paths 1D pour tableaux</strong> : Opcodes spécialisés (<code>OP_ARRAY_GET_GLOBAL</code>, <code>OP_ARRAY_SET_GLOBAL</code>, <code>OP_ARRAY_GET_LOCAL</code>, <code>OP_ARRAY_SET_LOCAL</code>) éliminant toute copie inutile.</li>
+                <li><strong>Fast-paths arithmétiques</strong> : Traitement direct inliné des opérandes entiers 64-bit pour <code>+</code>, <code>-</code>, <code>*</code>, <code>div</code>, <code>mod</code>, <code>&lt;</code>.</li>
+                <li><strong>Gestion des pointeurs et tas VM</strong> : Opcodes spécialisés (<code>OP_ALLOC_PTR</code>, <code>OP_FREE_PTR</code>, <code>OP_DEREF</code>, <code>OP_REF_DEREF</code>) pour l'allocation sur le tas, le déréférencement sécurisé et la détection d'accès <code>NIL</code>.</li>
+                <li><strong>Optimiseur Peephole</strong> : Élimination des instructions inutiles et chaînage direct des sauts conditionnels (<code>OP_JUMP_IF_FALSE</code>).</li>
+                <li><strong>Pliage de constantes (Constant Folding)</strong> : Évaluation au moment de la compilation des sous-expressions statiques (ex. <code>2 * 3.14 * 10</code>).</li>
+            </ul>
 
+            <h3>10.1 Visualisation du Désassemblage</h3>
+            <pre><code>algo.exe mon_programme.alg --dump-bytecode</code><button class="copy-btn" onclick="copyCode(this)">Copier</button></pre>
             <pre><code>== Désassemblage du Chunk: principal ==
 Offset  Ligne  Opcode              Opérandes
 0000    3      OP_CONSTANT         0 ('Bonjour')
@@ -935,6 +1028,382 @@ Offset  Ligne  Opcode              Opérandes
 0003    4      OP_CONST_INT        10
 0005    |      OP_SET_GLOBAL       0 ('n')
 0007    5      OP_RETURN           </code><button class="copy-btn" onclick="copyCode(this)">Copier</button></pre>
+
+            <h3>10.2 Bytecode Binaire Sérialisé (`.algb`)</h3>
+            <p>AlgorithmCompiler permet de compiler un algorithme en un fichier binaire compact <code>.algb</code> avec le format standardisé (magic number <code>ALGB</code>) :</p>
+            <pre><code># Compilation vers bytecode binaire :
+algo.exe mon_programme.alg --compile-bc mon_programme.algb
+
+# Exécution directe du bytecode binaire :
+algo.exe mon_programme.algb</code><button class="copy-btn" onclick="copyCode(this)">Copier</button></pre>
+
+            <h3>10.3 Génération d'Exécutables Autonomes Indépendants (`.exe`)</h3>
+            <p>Vous pouvez générer un exécutable <code>.exe</code> Windows 100% autonome et sans dépendances à partir de n'importe quel code source <code>.alg</code> ou fichier bytecode <code>.algb</code> :</p>
+            <pre><code>algo.exe mon_programme.alg --build-exe mon_programme.exe
+# ou syntaxe rapide :
+algo.exe mon_programme.alg -b</code><button class="copy-btn" onclick="copyCode(this)">Copier</button></pre>
+
+            <div class="card">
+                <div class="card-title">Fonctionnement technique de l'exécutable autonome :</div>
+                <p>• <strong>Patron d'overlay PE (PE Overlay Pattern)</strong> : le bytecode sérialisé est encapsulé directement à la fin du binaire avec un marqueur <code>ALGBEXEC</code> et sa taille en 64 bits.<br>
+                • <strong>Zéro dépendance de compilation</strong> : aucune chaîne d'outils externe (GCC, MinGW, Clang) n'est requise lors de la génération.<br>
+                • <strong>Distribution immédiate</strong> : l'exécutable généré est statiquement lié (<code>-static -static-libgcc -static-libstdc++</code>) et ne dépend d'aucune DLL tierce. Il fonctionne sur n'importe quel PC Windows par double-clic ou en console.</p>
+            </div>
+        </section>
+
+        <!-- Section: Structures Dynamiques -->
+        <section id="structures-dyn">
+            <h2>11. Exemples de Structures Dynamiques</h2>
+
+            <h3>11.1 Pile Dynamique (LIFO - Dernier Entré, Premier Sorti)</h3>
+            <pre><code>Algorithme TestPile
+TDNT
+Element = Enregistrement
+    valeur : entier
+    suivant : ^Element
+Fin
+Pile = ^Element
+
+Procédure Empiler(@p : Pile; val : entier)
+Début
+    Allouer(nouveau)
+    nouveau.valeur ← val
+    nouveau.suivant ← p
+    p ← nouveau
+Fin
+TDOL
+nouveau : Pile
+
+Procédure Depiler(@p : Pile; @val : entier)
+Début
+    Si p ≠ NIL Alors
+        val ← p.valeur
+        temp ← p
+        p ← p.suivant
+        Liberer(temp)
+    Fin Si
+Fin
+TDOL
+temp : Pile
+
+Début
+    sommet ← NIL
+    Empiler(sommet, 10)
+    Empiler(sommet, 20)
+    Empiler(sommet, 30)
+
+    Tant Que sommet ≠ NIL Faire
+        Depiler(sommet, v)
+        Ecrire("Dépilé :", v)
+    Fin Tant Que
+Fin
+TDO
+sommet : Pile
+v : entier</code><button class="copy-btn" onclick="copyCode(this)">Copier</button></pre>
+
+            <h3>11.2 File Dynamique (FIFO - Premier Entré, Premier Sorti)</h3>
+            <pre><code>Algorithme TestFile
+TDNT
+Noeud = Enregistrement
+    donnee : entier
+    suivant : ^Noeud
+Fin
+File = Enregistrement
+    tete : ^Noeud
+    queue : ^Noeud
+Fin
+
+Procédure Enfiler(@f : File; val : entier)
+Début
+    Allouer(nouveau)
+    nouveau.donnee ← val
+    nouveau.suivant ← NIL
+    Si f.tete = NIL Alors
+        f.tete ← nouveau
+        f.queue ← nouveau
+    Sinon
+        f.queue.suivant ← nouveau
+        f.queue ← nouveau
+    Fin Si
+Fin
+TDOL
+nouveau : ^Noeud
+
+Début
+    f.tete ← NIL
+    f.queue ← NIL
+    Enfiler(f, 100)
+    Enfiler(f, 200)
+    Ecrire("Tête :", f.tete.donnee, "Queue :", f.queue.donnee)
+Fin
+TDO
+f : File</code><button class="copy-btn" onclick="copyCode(this)">Copier</button></pre>
+
+            <h3>11.3 Arbre Binaire de Recherche (ABR)</h3>
+            <pre><code>Algorithme TestArbre
+TDNT
+NoeudArbre = Enregistrement
+    valeur : entier
+    gauche : ^NoeudArbre
+    droite : ^NoeudArbre
+Fin
+Arbre = ^NoeudArbre
+
+Procédure Inserer(@racine : Arbre; val : entier)
+Début
+    Si racine = NIL Alors
+        Allouer(racine)
+        racine.valeur ← val
+        racine.gauche ← NIL
+        racine.droite ← NIL
+    Sinon Si val < racine.valeur Alors
+        Inserer(racine.gauche, val)
+    Sinon
+        Inserer(racine.droite, val)
+    Fin Si
+Fin
+
+Procédure AfficherInfixe(racine : Arbre)
+Début
+    Si racine ≠ NIL Alors
+        AfficherInfixe(racine.gauche)
+        Ecrire(racine.valeur)
+        AfficherInfixe(racine.droite)
+    Fin Si
+Fin
+
+Début
+    racine ← NIL
+    Inserer(racine, 50)
+    Inserer(racine, 30)
+    Inserer(racine, 70)
+    Ecrire("Parcours Infixe :")
+    AfficherInfixe(racine)
+Fin
+TDO
+racine : Arbre</code><button class="copy-btn" onclick="copyCode(this)">Copier</button></pre>
+        </section>
+
+        <!-- Section: Flowchart -->
+        <section id="flowchart">
+            <h2>12. Générateur d'Organigrammes & Algorigrammes (`--flowchart`, `--flowchart-html`)</h2>
+            <p>AlgorithmCompiler permet de convertir automatiquement n'importe quel code source algorithmique en <strong>organigramme (algorigramme)</strong> normalisé conforme aux standards <strong>ISO 5807</strong> :</p>
+
+            <h3>12.1 Export au format Mermaid pur (`--flowchart`, `-f`, `--mermaid`)</h3>
+            <p>Génère le graphe au format texte Mermaid, directement visualisable dans GitHub, VS Code, Notion ou le Mermaid Live Editor :</p>
+            <pre><code># Afficher l'organigramme Mermaid dans la console :
+algo.exe mon_programme.alg --flowchart
+
+# Enregistrer l'organigramme dans un fichier .mmd :
+algo.exe mon_programme.alg --flowchart diagramme.mmd
+# ou syntaxe courte :
+algo.exe mon_programme.alg -f diagramme.mmd</code><button class="copy-btn" onclick="copyCode(this)">Copier</button></pre>
+
+            <h3>12.2 Export en Page HTML Autonome Interactive (`--flowchart-html`)</h3>
+            <p>Génère une page web autonome complète contenant :</p>
+            <ul>
+                <li>Le rendu vectoriel SVG haute résolution du diagramme.</li>
+                <li>Une barre d'outils interactive : <strong>Zoom avant (+)</strong>, <strong>Zoom arrière (-)</strong>, <strong>Réinitialisation (Reset)</strong>, <strong>Plein écran</strong>, et <strong>Export SVG vectoriel immédiat</strong>.</li>
+                <li>La navigation panoramique à la souris (Pan & Zoom via <code>svg-pan-zoom</code>).</li>
+                <li>Aucun serveur web requis : double-cliquez simplement sur le fichier <code>.html</code> pour l'ouvrir dans n'importe quel navigateur !</li>
+            </ul>
+            <pre><code>algo.exe mon_programme.alg --flowchart-html organigramme.html</code><button class="copy-btn" onclick="copyCode(this)">Copier</button></pre>
+
+            <h3>12.3 Représentation Normalisée des Formes (ISO 5807)</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Élément algorithmique</th>
+                        <th>Forme géométrique</th>
+                        <th>Syntaxe Mermaid</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Début / Fin d'algorithme ou sous-programme</td>
+                        <td>Stade / Rectangle arrondi</td>
+                        <td><code>id(["Début"])</code></td>
+                    </tr>
+                    <tr>
+                        <td>Traitement / Affectation / Calculs</td>
+                        <td>Rectangle</td>
+                        <td><code>id["R ← 1000.0"]</code></td>
+                    </tr>
+                    <tr>
+                        <td>Entrée (<code>Lire</code>) / Sortie (<code>Ecrire</code>)</td>
+                        <td>Parallélogramme standard (I/O)</td>
+                        <td><code>id[/"Lire(x)"/]</code></td>
+                    </tr>
+                    <tr>
+                        <td>Appel de sous-programme (<code>Procédure</code>)</td>
+                        <td>Rectangle à double barre latérale</td>
+                        <td><code>id[["Tri(t)"]]</code></td>
+                    </tr>
+                    <tr>
+                        <td>Branchement conditionnel (<code>Si</code>, <code>Tant Que</code>, <code>Jusqu'à</code>)</td>
+                        <td>Losange de décision</td>
+                        <td><code>id{"x > 0 ?"}</code></td>
+                    </tr>
+                    <tr>
+                        <td>Aiguillage multiple (<code>Selon ... Cas</code>)</td>
+                        <td>Losange multi-branches</td>
+                        <td><code>id{"Selon code"}</code></td>
+                    </tr>
+                    <tr>
+                        <td>Jonction de flux / Boucle</td>
+                        <td>Nœud circulaire de convergence</td>
+                        <td><code>id(( ))</code></td>
+                    </tr>
+                    <tr>
+                        <td>Sous-programmes (<code>Procédure</code>, <code>Fonction</code>)</td>
+                        <td>Sous-graphe dédié</td>
+                        <td><code>subgraph sub_func ["..."]</code></td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- Section: Memory Leak Checker -->
+        <section id="leakcheck">
+            <h2>13. Détection de Fuites de Mémoire pour les Pointeurs (`--leak-check`)</h2>
+            <p>Lors de la manipulation de structures dynamiques (listes chaînées, piles, files, arbres, graphes), la gestion rigoureuse de la mémoire est primordiale pour l'apprentissage. AlgorithmCompiler intègre un <strong>vérificateur de fuites de mémoire (Memory Leak Checker)</strong> activable via le drapeau <code>--leak-check</code> :</p>
+            <pre><code>algo.exe pile_dynamique.alg --leak-check</code><button class="copy-btn" onclick="copyCode(this)">Copier</button></pre>
+
+            <div class="card">
+                <div class="card-title">Fonctionnement du traqueur :</div>
+                <p>1. Chaque appel à <code>Allouer(p)</code> enregistre l'allocation : identifiant du bloc, adresse virtuelle, type d'objet, taille mémoire, numéro de ligne et colonne source.<br>
+                2. Chaque appel à <code>Liberer(p)</code> désalloue l'objet et retire son entrée du registre.<br>
+                3. À la fin du programme (ou en cas d'erreur fatale), le compilateur dresse un rapport d'audit exhaustif.</p>
+            </div>
+
+            <div class="alert tip">
+                <strong>✓ Aucune fuite :</strong> Affiche l'indicateur de réussite vert :<br>
+                <code>[SUCCÈS] Vérification mémoire : Aucune fuite détectée (tous les blocs alloués ont été correctement libérés).</code>
+            </div>
+            <div class="alert warning">
+                <strong>⚠️ Fuites détectées :</strong> Énumère chaque bloc mémoire non libéré avec son adresse virtuelle et son emplacement source d'allocation pour faciliter la correction par l'élève.
+            </div>
+            <p>Fonctionne de manière transparente aussi bien avec le moteur d'interprétation AST (<code>--ast</code>) qu'avec la Machine Virtuelle à Bytecode (<code>--vm</code>).</p>
+        </section>
+
+        <!-- Section: Stack Trace -->
+        <section id="stacktrace">
+            <h2>14. Trace d'Exécution Pédagogique (Runtime Stack Trace)</h2>
+            <p>En cas d'erreur survenant lors de l'exécution (division entière ou réelle par zéro, modulo par zéro, débordement d'indice de tableau, déréférencement d'un pointeur <code>NIL</code>, ou récursion infinie dépassant la limite d'appels), AlgorithmCompiler génère une <strong>trace de pile d'appels (Call Stack)</strong> hautement visuelle et pédagogique :</p>
+            <pre><code>==============================================================================
+ ERREUR D'EXÉCUTION : Débordement d'indice de tableau : indice 5 hors des bornes [0..4] (ligne 14)
+==============================================================================
+ -> Ligne 14 :
+        t[i] ← t[i + 1]
+        ^~~~
+
+Trace des appels (Call Stack) :
+  #0  Procédure Decaler_Gauche(t, 4) à la ligne 14
+  #1  Procédure Supprimer_Element(t, 2) à la ligne 28
+  #2  Algorithme Principal Gestion_Tableau à la ligne 45
+==============================================================================</code><button class="copy-btn" onclick="copyCode(this)">Copier</button></pre>
+
+            <div class="card">
+                <div class="card-title">Caractéristiques de la trace :</div>
+                <p>• Pointeur visuel sous le jeton responsable (<code>^~~~</code>).<br>
+                • Numérotation inversée des cadres d'appels (<code>#0</code> = lieu de l'exception, <code>#1</code> = appelant direct, ..., <code>#N</code> = bloc principal).<br>
+                • Affichage des noms des procédures et fonctions et de leurs arguments actuels.</p>
+            </div>
+        </section>
+
+        <!-- Section: DCE -->
+        <section id="dce">
+            <h2>15. Optimisations Bytecode & Élimination du Code Mort (DCE)</h2>
+            <p>Le compilateur de bytecode (<code>BytecodeCompiler</code>) intègre une passe d'optimisation statique active par défaut :</p>
+            <ul>
+                <li><strong>Élimination du code mort après <code>Retourner</code> (Dead Code Elimination)</strong> : Toutes les instructions situées après un <code>Retourner</code> inconditionnel au sein d'un même bloc de sous-programme sont élaguées dès la compilation et ne génèrent aucun opcode bytecode.</li>
+                <li><strong>Élagage des branches conditionnelles constantes</strong> : Les structures <code>Si Vrai Alors ...</code> ou <code>Si Faux Alors ...</code> sont simplifiées à la compilation, éliminant les sauts conditionnels superflus.</li>
+                <li><strong>Pliage de constantes (Constant Folding)</strong> : Les expressions arithmétiques ou logiques entre littéraux constants (ex. <code>2 + 3 * 4</code>) sont pré-calculées à la compilation.</li>
+            </ul>
+            <p>Pour inspecter les effets de ces optimisations sur vos algorithmes, utilisez :</p>
+            <pre><code>algo.exe mon_programme.alg --dump-bytecode</code><button class="copy-btn" onclick="copyCode(this)">Copier</button></pre>
+        </section>
+
+        <!-- Section: WebAssembly -->
+        <section id="wasm">
+            <h2>16. Studio Web & WebAssembly (Wasm)</h2>
+            <p>AlgorithmCompiler peut être compilé vers le Web sous forme de module binaire <strong>WebAssembly (Wasm)</strong> grâce à Emscripten SDK (<code>emsdk</code>). Une application web moderne prête à l'emploi est incluse dans le dossier <code>web/</code> :</p>
+
+            <h3>16.1 Compilation WebAssembly</h3>
+            <pre><code># Sous Windows (script batch avec auto-détection intelligente de C:\emsdk) :
+build_wasm.bat
+
+# Sous Linux / macOS :
+./build_wasm.sh
+# ou avec le Makefile (Linux, macOS, WSL) :
+make wasm</code><button class="copy-btn" onclick="copyCode(this)">Copier</button></pre>
+            <p>Cette commande produit :</p>
+            <ul>
+                <li><code>web/algo.wasm</code> : Le binaire WebAssembly optimisé en <code>-O3</code> (~950 Ko).</li>
+                <li><code>web/algo.js</code> : Le module JavaScript d'initialisation et de liaison des fonctions exportées (~60 Ko).</li>
+            </ul>
+
+            <h3>16.2 Fonctions Exportées de l'API C / WebAssembly</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Fonction C exportée</th>
+                        <th>Rôle</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>algo_run(src, stdin, maxIter, timeoutMs)</code></td>
+                        <td>Exécute l'algorithme sur la Bytecode VM dans le navigateur et renvoie la sortie console.</td>
+                    </tr>
+                    <tr>
+                        <td><code>algo_check(src)</code></td>
+                        <td>Lance l'analyse sémantique statique et renvoie les diagnostics au format JSON.</td>
+                    </tr>
+                    <tr>
+                        <td><code>algo_to_python(src)</code></td>
+                        <td>Transpile le code en Python 3 directement dans le client web.</td>
+                    </tr>
+                    <tr>
+                        <td><code>algo_flowchart(src, mode)</code></td>
+                        <td>Génère l'organigramme Mermaid ou HTML pour visualisation immédiate.</td>
+                    </tr>
+                    <tr>
+                        <td><code>algo_signatures(src)</code></td>
+                        <td>Extrait les signatures des sous-programmes et infère les tables TDO/TDNT.</td>
+                    </tr>
+                    <tr>
+                        <td><code>algo_version()</code></td>
+                        <td>Retourne la chaîne d'information complète de version.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>16.3 Tester le Studio Web en Local</h3>
+            <p>Lancez simplement un serveur HTTP statique dans le dossier <code>web/</code> :</p>
+            <pre><code># Avec Python :
+python -m http.server -d web 8080
+
+# Ou avec Node.js :
+npx serve web</code><button class="copy-btn" onclick="copyCode(this)">Copier</button></pre>
+            <p>Puis accédez à <code>http://localhost:8080</code> dans votre navigateur.</p>
+        </section>
+
+        <!-- Section: Comments -->
+        <section id="comments">
+            <h2>17. Gestion Universelle des Commentaires</h2>
+            <p>AlgorithmCompiler intègre un moteur de traitement lexical et syntaxique des commentaires entièrement résistant :</p>
+            <ul>
+                <li><strong>Commentaires de fin de ligne</strong> : <code>// mon commentaire</code></li>
+                <li><strong>Commentaires multi-lignes</strong> : <code>/* commentaire sur plusieurs lignes */</code></li>
+            </ul>
+            <p>Les commentaires sont filtrés de manière transparente dès l'entrée dans l'analyseur syntaxique (<code>Parser</code>), ce qui garantit qu'un commentaire ne provoque <strong>jamais d'erreur de syntaxe</strong>, quel que soit son emplacement :</p>
+            <ul>
+                <li>Au milieu d'une boucle <code>Répéter ... Jusqu'à</code>.</li>
+                <li>Entre les mots-clés <code>Sinon</code> et <code>Si</code> (<code>Sinon /* comment */ Si</code>).</li>
+                <li>Au sein d'une liste de paramètres ou d'arguments.</li>
+                <li>Dans les tables de déclarations (<code>TDO</code>, <code>TDOL</code>, <code>TDNT</code>).</li>
+            </ul>
         </section>
     </main>
 
