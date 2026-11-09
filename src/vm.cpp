@@ -1302,6 +1302,65 @@ void VM::run(const BytecodeProgram& prog) {
                 break;
             }
 
+            case OpCode::OP_FOR_CHECK: {
+                if (stack_.size() >= 3) {
+                    Value& s = stack_.back();
+                    Value& e = stack_[stack_.size() - 2];
+                    Value& v = stack_[stack_.size() - 3];
+                    if (v.type == ValueType::Int && e.type == ValueType::Int && s.type == ValueType::Int) {
+                        int64_t step = s.intVal;
+                        if (step == 0) {
+                            throw AlgoError("Le pas de la boucle Pour ne peut pas être nul", curLine);
+                        }
+                        bool ok = (step > 0) ? (v.intVal <= e.intVal) : (v.intVal >= e.intVal);
+                        stack_.pop_back();
+                        stack_.pop_back();
+                        v.type = ValueType::Bool;
+                        v.boolVal = ok;
+                        v.intVal = ok ? 1 : 0;
+                        break;
+                    }
+                }
+                Value stepVal = pop();
+                Value endVal = pop();
+                Value varVal = pop();
+                if (!stepVal.isNumber()) {
+                    throw AlgoError("Le pas de la boucle Pour doit être un nombre", curLine);
+                }
+                int64_t step = stepVal.asInt();
+                if (step == 0) {
+                    throw AlgoError("Le pas de la boucle Pour ne peut pas être nul", curLine);
+                }
+                bool ok = (step > 0) ? varVal.lessOrEqual(endVal) : varVal.greaterOrEqual(endVal);
+                push(Value(ok));
+                break;
+            }
+
+            case OpCode::OP_FOR_LAST_CHECK: {
+                if (stack_.size() >= 3) {
+                    Value& s = stack_.back();
+                    Value& e = stack_[stack_.size() - 2];
+                    Value& v = stack_[stack_.size() - 3];
+                    if (v.type == ValueType::Int && e.type == ValueType::Int && s.type == ValueType::Int) {
+                        int64_t step = s.intVal;
+                        bool reached = (step > 0) ? (v.intVal >= e.intVal) : (v.intVal <= e.intVal);
+                        stack_.pop_back();
+                        stack_.pop_back();
+                        v.type = ValueType::Bool;
+                        v.boolVal = reached;
+                        v.intVal = reached ? 1 : 0;
+                        break;
+                    }
+                }
+                Value stepVal = pop();
+                Value endVal = pop();
+                Value varVal = pop();
+                int64_t step = stepVal.asInt();
+                bool reached = (step > 0) ? varVal.greaterOrEqual(endVal) : varVal.lessOrEqual(endVal);
+                push(Value(reached));
+                break;
+            }
+
             case OpCode::OP_JUMP: {
                 int32_t offset = frame->chunk->readInt32(frame->ip);
                 frame->ip += offset;

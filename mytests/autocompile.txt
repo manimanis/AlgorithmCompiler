@@ -1,2 +1,2 @@
-git tag v1.8.0 -m "Release v1.8.0 : Inférence TDO/TDNT."
-git push origin v1.8.0
+git tag v1.8.1 -m "Release v1.8.1 : Ajout de l'option d'évaluation directe en ligne de commande."
+git push origin v1.8.1

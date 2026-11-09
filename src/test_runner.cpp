@@ -797,6 +797,99 @@ static void runNewFeaturesUnitTests(int& passed, int& failed, int& totalUnitTest
             failed++;
         }
     }
+
+    // 5. Boucle Pour avec pas dynamique négatif (ex02_v03.algo) - Machine Virtuelle Bytecode
+    {
+        totalUnitTests++;
+        try {
+            std::string src =
+                "Algorithme Exercice2\n"
+                "Début\n"
+                "  n ← -5\n"
+                "  Si n ≥ 0 Alors\n"
+                "    p ← 1\n"
+                "  Sinon\n"
+                "    p ← -1\n"
+                "  Fin Si\n"
+                "  Pour i de p à n pas p Faire\n"
+                "    Ecrire(i, fin=\", \")\n"
+                "  Fin Pour\n"
+                "Fin\n"
+                "TDO\n"
+                "Objet : Type/Nature\n"
+                "p : entier\n"
+                "n, i : entier\n";
+            Lexer lexer(src);
+            Parser parser(lexer.tokenize());
+            Program prog = parser.parse();
+
+            BytecodeCompiler compiler;
+            BytecodeProgram bcProg = compiler.compile(prog);
+
+            std::string out;
+            VM vm;
+            vm.setOutputCallback([&out](const std::string& s) { out += s; });
+            vm.run(bcProg);
+
+            bool ok = (out == "-1, -2, -3, -4, -5, ");
+
+            if (ok) {
+                std::cout << " [PASS] unit/for_loop_dynamic_step_negative_vm\n";
+                passed++;
+            } else {
+                std::cout << " [FAIL] unit/for_loop_dynamic_step_negative_vm (obtenu: \"" << out << "\")\n";
+                failed++;
+            }
+        } catch (const std::exception& e) {
+            std::cout << " [FAIL] unit/for_loop_dynamic_step_negative_vm (" << e.what() << ")\n";
+            failed++;
+        }
+    }
+
+    // 6. Boucle Pour avec pas dynamique négatif (ex02_v03.algo) - Interpréteur AST
+    {
+        totalUnitTests++;
+        try {
+            std::string src =
+                "Algorithme Exercice2\n"
+                "Début\n"
+                "  n ← -5\n"
+                "  Si n ≥ 0 Alors\n"
+                "    p ← 1\n"
+                "  Sinon\n"
+                "    p ← -1\n"
+                "  Fin Si\n"
+                "  Pour i de p à n pas p Faire\n"
+                "    Ecrire(i, fin=\", \")\n"
+                "  Fin Pour\n"
+                "Fin\n"
+                "TDO\n"
+                "Objet : Type/Nature\n"
+                "p : entier\n"
+                "n, i : entier\n";
+            Lexer lexer(src);
+            Parser parser(lexer.tokenize());
+            Program prog = parser.parse();
+
+            std::string out;
+            Interpreter interpreter;
+            interpreter.setOutputCallback([&out](const std::string& s) { out += s; });
+            interpreter.run(prog);
+
+            bool ok = (out == "-1, -2, -3, -4, -5, ");
+
+            if (ok) {
+                std::cout << " [PASS] unit/for_loop_dynamic_step_negative_ast\n";
+                passed++;
+            } else {
+                std::cout << " [FAIL] unit/for_loop_dynamic_step_negative_ast (obtenu: \"" << out << "\")\n";
+                failed++;
+            }
+        } catch (const std::exception& e) {
+            std::cout << " [FAIL] unit/for_loop_dynamic_step_negative_ast (" << e.what() << ")\n";
+            failed++;
+        }
+    }
 }
 
 int main(int argc, char* argv[]) {

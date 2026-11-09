@@ -63,6 +63,8 @@ const char* opCodeName(OpCode op) {
         case OpCode::OP_GT: return "OP_GT";
         case OpCode::OP_GE: return "OP_GE";
         case OpCode::OP_IN: return "OP_IN";
+        case OpCode::OP_FOR_CHECK: return "OP_FOR_CHECK";
+        case OpCode::OP_FOR_LAST_CHECK: return "OP_FOR_LAST_CHECK";
         case OpCode::OP_JUMP: return "OP_JUMP";
         case OpCode::OP_JUMP_IF_FALSE: return "OP_JUMP_IF_FALSE";
         case OpCode::OP_JUMP_IF_TRUE: return "OP_JUMP_IF_TRUE";

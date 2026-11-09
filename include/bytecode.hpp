@@ -67,6 +67,8 @@ enum class OpCode : uint8_t {
     OP_GT,
     OP_GE,
     OP_IN,
+    OP_FOR_CHECK,           // [var, end, step] -> push (step > 0 ? var <= end : var >= end)
+    OP_FOR_LAST_CHECK,      // [var, end, step] -> push (step > 0 ? var >= end : var <= end)
 
     // Jumps & Control flow
     OP_JUMP,                // [int32 offset] -> ip += offset

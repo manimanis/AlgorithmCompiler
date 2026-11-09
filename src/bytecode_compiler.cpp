@@ -754,6 +754,14 @@ void BytecodeCompiler::visit(IfStmt& node) {
 }
 
 void BytecodeCompiler::visit(ForStmt& node) {
+    if (node.step) {
+        if (auto num = std::dynamic_pointer_cast<NumberExpr>(node.step)) {
+            if (num->value == 0) {
+                throw AlgoError("Le pas de la boucle Pour ne peut pas être nul", node.line);
+            }
+        }
+    }
+
     // 1. Initialize loop var: var = start
     compileExpr(node.start);
     int localIdx = isInsideSubroutine_ ? findLocal(node.varName) : -1;
@@ -767,7 +775,7 @@ void BytecodeCompiler::visit(ForStmt& node) {
 
     size_t loopStart = currentChunk_->code.size();
 
-    // 2. Condition check: var <= end (or >= if step < 0)
+    // 2. Condition check: var, end, step -> OP_FOR_CHECK (dynamically evaluates step > 0 ? var <= end : var >= end)
     if (localIdx != -1) {
         emitOp(locals_[localIdx].byRef ? OpCode::OP_GET_REF : OpCode::OP_GET_LOCAL);
         emitUint32(static_cast<uint32_t>(localIdx));
@@ -776,34 +784,20 @@ void BytecodeCompiler::visit(ForStmt& node) {
         emitUint32(addName(node.varName));
     }
     compileExpr(node.end);
-
-    // Determine direction
-    bool isNegativeStep = false;
     if (node.step) {
-        if (auto num = std::dynamic_pointer_cast<NumberExpr>(node.step)) {
-            if (num->value == 0) {
-                throw AlgoError("Le pas de la boucle Pour ne peut pas être nul", node.line);
-            }
-            if (num->value < 0) isNegativeStep = true;
-        } else if (auto un = std::dynamic_pointer_cast<UnaryExpr>(node.step)) {
-            if (un->op == "-") {
-                if (auto num = std::dynamic_pointer_cast<NumberExpr>(un->operand)) {
-                    if (num->value == 0) {
-                        throw AlgoError("Le pas de la boucle Pour ne peut pas être nul", node.line);
-                    }
-                    if (num->value > 0) isNegativeStep = true;
-                }
-            }
-        }
+        compileExpr(node.step);
+    } else {
+        emitOp(OpCode::OP_CONST);
+        emitUint32(addConstant(Value((int64_t)1)));
     }
-    emitOp(isNegativeStep ? OpCode::OP_GE : OpCode::OP_LE);
+    emitOp(OpCode::OP_FOR_CHECK);
 
     size_t exitJump = emitJump(OpCode::OP_JUMP_IF_FALSE);
 
     // 3. Body
     compileBlock(node.body);
 
-    // If we reached the end boundary, break without incrementing so the loop variable keeps the final iteration value
+    // 4. If we reached the end boundary, break without incrementing so the loop variable keeps the final iteration value
     if (localIdx != -1) {
         emitOp(locals_[localIdx].byRef ? OpCode::OP_GET_REF : OpCode::OP_GET_LOCAL);
         emitUint32(static_cast<uint32_t>(localIdx));
@@ -812,10 +806,16 @@ void BytecodeCompiler::visit(ForStmt& node) {
         emitUint32(addName(node.varName));
     }
     compileExpr(node.end);
-    emitOp(isNegativeStep ? OpCode::OP_LE : OpCode::OP_GE);
+    if (node.step) {
+        compileExpr(node.step);
+    } else {
+        emitOp(OpCode::OP_CONST);
+        emitUint32(addConstant(Value((int64_t)1)));
+    }
+    emitOp(OpCode::OP_FOR_LAST_CHECK);
     size_t lastIterJump = emitJump(OpCode::OP_JUMP_IF_TRUE);
 
-    // 4. Increment: var = var + step
+    // 5. Increment: var = var + step
     if (localIdx != -1) {
         emitOp(locals_[localIdx].byRef ? OpCode::OP_GET_REF : OpCode::OP_GET_LOCAL);
         emitUint32(static_cast<uint32_t>(localIdx));
@@ -840,7 +840,7 @@ void BytecodeCompiler::visit(ForStmt& node) {
         emitUint32(addName(node.varName));
     }
 
-    // 5. Loop back
+    // 6. Loop back
     emitLoop(loopStart);
     patchJump(exitJump);
     patchJump(lastIterJump);
